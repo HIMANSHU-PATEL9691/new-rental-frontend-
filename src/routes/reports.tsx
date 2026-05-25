@@ -41,12 +41,12 @@ export default function ReportsPage() {
   const [role, setRole] = useState("");
 
   useEffect(() => {
-    const savedRole = localStorage.getItem("user_role");
+    const savedRole = localStorage.getItem("user_role")?.trim().toLowerCase();
     setRole(savedRole || "");
     
     if (!savedRole) {
       navigate({ to: "/login" });
-    } else if (savedRole !== "admin" && savedRole !== "reception") {
+    } else if (savedRole !== "admin") {
       navigate({ to: "/availability" });
     }
   }, []);

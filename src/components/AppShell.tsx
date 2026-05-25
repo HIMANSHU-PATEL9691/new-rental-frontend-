@@ -23,8 +23,31 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { NewRentalDialog } from "@/components/forms/NewRentalDialog";
+import { AddPieceDialog } from "@/components/forms/AddPieceDialog";
 import { useStore } from "@/data/store";
 import brandLogo from "@/assets/logo.png";
+
+const DEFAULT_CATEGORIES = {
+  MENS: "Mens",
+  WOMENS: "Women's",
+};
+
+const DEFAULT_SUBCATEGORY_BY_CATEGORY = {
+  "Mens": [
+    "Suit",
+    "Jodhpuri",
+    "Sherwani",
+    "Accessories",
+  ],
+  "Women's": [
+    "Lehanga",
+    "Sider jewellery",
+    "Bridal jewellery",
+    "Gown",
+    "Rajputana Dress",
+    "Accessories",
+  ],
+};
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true, roles: ["admin"] },
@@ -35,8 +58,8 @@ const nav = [
   { to: "/deliveries", label: "Deliveries", icon: Package, exact: false, roles: ["admin", "employee", "reception"] },
   { to: "/return-items", label: "Return Items", icon: Clock, exact: false, roles: ["admin", "reception"] },
   { to: "/calendar", label: "Calendar", icon: CalendarDays, exact: false, roles: ["admin", "employee", "reception"] },
-  { to: "/reports", label: "Reports", icon: FileText, exact: false, roles: ["admin", "reception"] },
-  { to: "/settings", label: "Settings", icon: Settings, exact: false, roles: ["admin", "reception"] },
+  { to: "/reports", label: "Reports", icon: FileText, exact: false, roles: ["admin"] },
+  { to: "/settings", label: "Settings", icon: Settings, exact: false, roles: ["admin", "reception", "employee"] },
   { to: "/approvals", label: "Approvals", icon: Users, exact: false, roles: ["admin"] },
 ] as const;
 
@@ -82,7 +105,7 @@ function Brand() {
       <img
 
         src={brandLogo}
-        alt="ARIHANT COLLECTION logo"
+        alt="SAJAN SAGAR COLLECTION logo"
         width={40}
         height={40}
         className="h-10 w-10 rounded-md border border-gold/30 bg-background/50 object-contain"
@@ -91,7 +114,7 @@ function Brand() {
         <span className="text-[10px] uppercase tracking-[0.32em] text-gold">
           Rental point
         </span>
-        <span className="font-display text-2xl leading-none">ARIHANT COLLECTION</span>
+        <span className="font-display text-2xl leading-none">SAJAN SAGAR COLLECTION</span>
       </span>
     </Link>
   );
@@ -99,7 +122,7 @@ function Brand() {
 
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { searchQuery, setSearchQuery, rentals } = useStore();
+  const { searchQuery, setSearchQuery, rentals, items } = useStore();
   const [pathname, setPathname] = useState(typeof window !== "undefined" ? window.location.pathname : "/");
 
   useEffect(() => {
@@ -130,6 +153,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
     return false;
   });
+
+  const itemCategories = Array.from(
+    new Set([
+      ...Object.values(DEFAULT_CATEGORIES),
+      ...items.map((i: any) => i.category).filter(Boolean),
+    ]),
+  );
+
+  const dynamicSubcategoryByCategory = items.reduce(
+    (acc: Record<string, string[]>, item: any) => {
+      if (!item.category || !item.subcategory) return acc;
+      const current = acc[item.category] || [
+        ...(DEFAULT_SUBCATEGORY_BY_CATEGORY[item.category as keyof typeof DEFAULT_SUBCATEGORY_BY_CATEGORY] || []),
+      ];
+      if (!current.includes(item.subcategory)) {
+        current.push(item.subcategory);
+      }
+      acc[item.category] = current;
+      return acc;
+    },
+    {
+      ...DEFAULT_SUBCATEGORY_BY_CATEGORY,
+    } as Record<string, string[]>,
+  );
 
   useEffect(() => {
     setMobileOpen(false);
@@ -221,7 +268,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Button>
 
             <Link to="/" className="font-display text-lg leading-none md:hidden">
-              ARIHANT COLLECTION
+              SAJAN SAGAR COLLECTION
             </Link>
 
             <div className="relative hidden max-w-md flex-1 sm:block">
@@ -255,6 +302,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive border-[1.5px] border-background" />
             )}
               </Button>
+              {/* New Piece Button - visible on inventory page for authorized roles */}
+              {pathname.startsWith('/inventory') && ["admin", "employee", "reception"].includes(role) && (
+                <AddPieceDialog
+                  categories={itemCategories}
+                  subcategoryByCategory={dynamicSubcategoryByCategory}
+                  trigger={
+                    <Button
+                      size="icon"
+                      className="sm:hidden"
+                      aria-label="New Piece"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  }
+                />
+              )}
+              {pathname.startsWith('/inventory') && ["admin", "employee", "reception"].includes(role) && (
+                <AddPieceDialog
+                  categories={itemCategories}
+                  subcategoryByCategory={dynamicSubcategoryByCategory}
+                  trigger={
+                    <Button className="hidden sm:inline-flex">
+                      <Plus className="mr-1.5 h-4 w-4" /> New Piece
+                    </Button>
+                  }
+                />
+              )}
               {(role === "admin" || role === "reception") && (
                 <NewRentalDialog
                   trigger={

@@ -256,7 +256,7 @@ export function NewRentalDialog({
         await navigator.share({
           files: [file],
           title: filename,
-          text: "Here is your rental final invoice from ARIHANT COLLECTION.",
+          text: "Here is your rental final invoice from SAJAN SAGAR COLLECTION.",
         });
         toast.success("Shared successfully!");
       } else {
@@ -271,7 +271,7 @@ export function NewRentalDialog({
         toast.success("PDF downloaded! Please attach it in WhatsApp.");
         window.open(
           `https://wa.me/?text=${encodeURIComponent(
-            "Here is your rental final invoice from ARIHANT COLLECTION. Please find the attached PDF."
+            "Here is your rental final invoice from SAJAN SAGAR COLLECTION. Please find the attached PDF."
           )}`,
           "_blank"
         );

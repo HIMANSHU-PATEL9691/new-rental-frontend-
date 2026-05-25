@@ -50,17 +50,20 @@ function getDueAmount(rental: any, allRentals: any[] = []) {
 
 export function DeliveriesPage() {
   const { rentals, items, customers, updateRental } = useStore();
-  const [role, setRole] = useState("");
+  const storedRole = typeof window !== 'undefined' ? localStorage.getItem("user_role")?.trim().toLowerCase() || "" : "";
+  const [role, setRole] = useState(storedRole);
   const [selectedDate, setSelectedDate] = useState(() => today());
   const [statusFilter, setStatusFilter] = useState("all");
   const [localSearch, setLocalSearch] = useState("");
   const [updating, setUpdating] = useState<string | null>(null);
-  const canUpdateDeliveries = ["admin", "reception", "employee"].includes(role);
+  const canUpdateDeliveries = ["admin", "reception"].includes(role);
   const canSeeFinancials = ["admin", "reception"].includes(role);
 
   useEffect(() => {
-    setRole(localStorage.getItem("user_role")?.trim().toLowerCase() || "");
-  }, []);
+    if (!role) {
+      setRole(localStorage.getItem("user_role")?.trim().toLowerCase() || "");
+    }
+  }, [role]);
 
   const deliveriesList = useMemo(() => {
     const query = localSearch.trim().toLowerCase();
@@ -108,15 +111,22 @@ export function DeliveriesPage() {
   const handleStatusUpdate = async (rental: any, newStatus: string, message: string) => {
     setUpdating(rental.id);
     try {
-      const payload = { ...rental, status: newStatus };
+      const payload: any = { status: newStatus };
+      if (typeof rental.advance === "number") {
+        payload.advance = rental.advance;
+      }
       if (newStatus === "returned") {
         const d = new Date();
         d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
         payload.returnedAt = d.toISOString();
+        if (rental.securityReturned) {
+          payload.securityReturned = true;
+        }
+        if (rental.securityReturnedAt) {
+          payload.securityReturnedAt = rental.securityReturnedAt;
+        }
       }
-      delete payload.customer;
-      delete payload.item;
-      
+
       await updateRental(rental.id, payload);
       toast.success(message);
     } catch (err) {

@@ -139,7 +139,7 @@ export function DuesPage() {
   }, [duesList]);
 
   const handleWhatsApp = (phone: string, name: string, due: number, billNo: string) => {
-    const message = `Hello ${name}, this is a gentle reminder from ARIHANT COLLECTION regarding your pending balance of ${formatCurrencyINR(due)} for Bill No: ${billNo || "N/A"}. Please clear your dues at the earliest. Thank you!`;
+    const message = `Hello ${name}, this is a gentle reminder from SAJAN SAGAR COLLECTION regarding your pending balance of ${formatCurrencyINR(due)} for Bill No: ${billNo || "N/A"}. Please clear your dues at the earliest. Thank you!`;
     
     // Strip non-numeric characters from the phone number for the WhatsApp URL
     const cleanPhone = phone.replace(/[^0-9]/g, "");

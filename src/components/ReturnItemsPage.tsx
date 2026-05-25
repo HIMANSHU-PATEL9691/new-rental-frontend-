@@ -88,7 +88,7 @@ export function ReturnItemsPage() {
   }, [rentals, items, customers]);
 
   const handleWhatsApp = (phone: string, name: string, itemName: string, endDate: string) => {
-    const message = `Hello ${name}, ARIHANT COLLECTION ki taraf se ek reminder! Aapka rented piece "${itemName}" return karne ki due date ${endDate} hai. Please time par return karein taaki koi penalty charges na lage. Thank you!`;
+    const message = `Hello ${name}, SAJAN SAGAR COLLECTION ki taraf se ek reminder! Aapka rented piece "${itemName}" return karne ki due date ${endDate} hai. Please time par return karein taaki koi penalty charges na lage. Thank you!`;
     
     // Strip non-numeric characters from the phone number for the WhatsApp URL
     const cleanPhone = phone.replace(/[^0-9]/g, "");

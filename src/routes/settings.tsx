@@ -30,11 +30,6 @@ export default function SettingsPage() {
 
     const savedRole = localStorage.getItem("user_role") || "admin";
     setRole(savedRole);
-
-    if (savedRole !== "admin" && savedRole !== "reception") {
-      toast.error("You do not have permission to access the settings page.");
-      window.location.href = "/availability";
-    }
   }, []);
 
   const handleSave = () => {
@@ -42,18 +37,7 @@ export default function SettingsPage() {
     toast.success("Policies updated successfully!");
   };
 
-  if (role !== "admin" && role !== "reception") {
-    return (
-      <AppShell>
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            You do not have permission to access this page. Only administrators and reception staff can manage settings.
-          </AlertDescription>
-        </Alert>
-      </AppShell>
-    );
-  }
+  const isReadOnly = role !== "admin" && role !== "reception";
 
   return (
     <AppShell>
@@ -67,6 +51,14 @@ export default function SettingsPage() {
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             Define the terms, conditions, and rules that will be printed at the bottom of all customer invoices.
           </p>
+          {isReadOnly && (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Settings are visible to employees but cannot be edited from this account.
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
       </div>
 

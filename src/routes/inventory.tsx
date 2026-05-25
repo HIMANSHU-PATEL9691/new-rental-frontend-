@@ -384,17 +384,19 @@ export default function InventoryPage() {
             {items.length} pieces curated - {items.filter((i) => i.status === "available").length} available
           </p>
         </div>
-      {(role === "admin" || role === "reception") && (
+      {["admin", "employee", "reception"].includes(role) && (
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            className="border-gold text-gold hover:bg-gold hover:text-gold-foreground"
-            disabled={uploading}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Upload className="h-4 w-4 mr-1.5" />
-            {uploading ? "Uploading..." : "Upload Excel"}
-          </Button>
+          {['admin', 'employee', 'reception'].includes(role) && (
+            <Button
+              variant="outline"
+              className="border-gold text-gold hover:bg-gold hover:text-gold-foreground"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="h-4 w-4 mr-1.5" />
+              {uploading ? "Uploading..." : "Upload Excel"}
+            </Button>
+          )}
           <AddPieceDialog
             categories={categoryOptions}
             subcategoryByCategory={dynamicSubcategoryByCategory}

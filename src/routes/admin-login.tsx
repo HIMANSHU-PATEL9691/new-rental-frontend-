@@ -28,13 +28,13 @@ export default function AdminLoginPage() {
     const trimmedPass = password.trim();
 
     // Mock Admin Authentication Logic
-    if ((trimmedUser === "admin@arihent" || trimmedUser === "9039489995") && trimmedPass === "arihent@15") {
+    if ((trimmedUser === "Sajansagar2516") && trimmedPass === "Shilpa2516") {
       localStorage.setItem("user_role", "admin");
       localStorage.setItem("user_name", "Admin");
       toast.success("Logged in as Admin");
       navigate({ to: "/" });
     } else {
-      toast.error("Invalid admin credentials. (Hint: admin / arihent@123)");
+      toast.error("Invalid admin credentials. Please try again.");
     }
   };
 

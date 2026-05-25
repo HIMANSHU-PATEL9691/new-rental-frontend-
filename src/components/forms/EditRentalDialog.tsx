@@ -295,7 +295,7 @@ export function EditRentalDialog({
           </div>
         </div>
 
-        <div class="thermal-footer">Thank you for choosing ARIHANT COLLECTION!</div>
+        <div class="thermal-footer">Thank you for choosing SAJAN SAGAR COLLECTION!</div>
 
       </div>
     `;
@@ -401,7 +401,7 @@ export function EditRentalDialog({
     else if (form.status === "returned") invoiceTitle = "Final Invoice";
     else if (form.status === "overdue") invoiceTitle = "Overdue Final Bill";
 
-    const message = `*ARIHANT COLLECTION - ${invoiceTitle}*
+    const message = `*SAJAN SAGAR COLLECTION - ${invoiceTitle}*
       
 *Invoice:* ${rental.billNo || rental.id}
 *Client:* ${customer?.name || rental.customerId}
@@ -415,7 +415,7 @@ ${piecesData.map(p => `- ${p.rItem?.name || "Unknown"} (${p.r.itemNo || p.r.item
 *Security Refund:* ${formatCurrencyINR(aggSecurityRefundDue)}
 *Balance:* ${formatCurrencyINR(aggFinalDue)}
 
-Thank you for choosing ARIHANT COLLECTION!`;
+Thank you for choosing SAJAN SAGAR COLLECTION!`;
 
 
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
@@ -471,10 +471,10 @@ Thank you for choosing ARIHANT COLLECTION!`;
         <div class="header">
           <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
             <rect width="100" height="100" fill="#111" rx="8" />
-            <text x="50" y="62" text-anchor="middle" font-family="Georgia, serif" font-size="38" fill="#d4af37" font-style="italic">AC</text>
+            <text x="50" y="62" text-anchor="middle" font-family="Georgia, serif" font-size="28" fill="#d4af37" font-style="italic">SS</text>
           </svg>
           <div class="company-info">
-            <h1>ARIHANT COLLECTION</h1>
+            <h1>SAJAN SAGAR COLLECTION</h1>
             <p>Rental Point</p>
           </div>
           <div class="invoice-title">
