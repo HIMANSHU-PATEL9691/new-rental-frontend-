@@ -55,6 +55,10 @@ const schema = z
     remark: z.string().trim().max(300).optional(),
     signature: z.string().optional(),
     status: z.enum(["active", "upcoming", "returned", "overdue"]),
+    ownerNumber: z.string().optional(),
+    instaId: z.string().optional(),
+    billMakingDate: z.string().optional(),
+    confirmationChecked: z.boolean().optional(),
   })
   .refine((d) => new Date(d.endDate) >= new Date(d.startDate), {
     message: "End date must be after start date",
@@ -162,6 +166,10 @@ export function EditRentalDialog({
     remark: rental.remark ?? "",
     signature: (rental.signature as string | undefined) ?? "",
     status: (rental.status ?? "upcoming") as RentalStatus,
+    ownerNumber: (rental as any).ownerNumber ?? "",
+    instaId: (rental as any).instaId ?? "",
+    billMakingDate: (rental as any).billMakingDate ? String((rental as any).billMakingDate).slice(0, 10) : today(),
+    confirmationChecked: Boolean((rental as any).confirmationChecked),
   });
 
   const [billNoLoading, setBillNoLoading] = useState(false);
@@ -213,41 +221,81 @@ export function EditRentalDialog({
     return [rental];
   }, [rentals, rental.billNo, rental.id]);
 
-  let aggSubtotal = 0;
-  let aggAdvance = 0;
-  let aggSecurity = 0;
-  let aggSecurityRefundDue = 0;
+  const computedPieces = useMemo(() => {
+    let aggSubtotalLocal = 0;
+    let aggAdvanceLocal = 0;
+    let aggSecurityLocal = 0;
+    let aggSecurityRefundDueLocal = 0;
 
-  const piecesData = relatedRentals.map((r) => {
-    const isCurrent = r.id === rental.id;
-    const rItem = getItem(r.itemId);
-    const rStartDate = isCurrent ? form.startDate : (r.startDate || "");
-    const rEndDate = isCurrent ? form.endDate : (r.endDate || "");
-    const rDeliveryDate = isCurrent ? form.deliveryDate : (r.deliveryDate || "");
-    const rDeliveryTime = isCurrent ? form.deliveryTime : ((r as any).deliveryTime || "");
-    const rDeliveryTimePeriod = isCurrent ? form.deliveryTimePeriod : ((r as any).deliveryTimePeriod || "");
-    const rEndTime = isCurrent ? form.endTime : ((r as any).endTime || "");
-    const rEndTimePeriod = isCurrent ? form.endTimePeriod : ((r as any).endTimePeriod || "");
-    const rQuantity = isSafaItem(rItem) ? (isCurrent ? rentalQuantity : Math.max(1, Number((r as any).quantity) || 1)) : 1;
-    const rLostQuantity = isCurrent ? form.lostQuantity : (Number((r as any).lostQuantity) || 0);
-    const d = daysBetween(rStartDate, rEndDate);
-    const rRate = isCurrent
-      ? form.rate
-      : getRentalAmount(r, rItem ? rItem.pricePerDay * daysBetween(rStartDate, rEndDate) : 0);
-    const rSubtotal = rRate * rQuantity;
-    
-    aggSubtotal += rSubtotal;
-    aggAdvance += isCurrent ? form.advance : (r.advance ?? 0);
-    const rSecurity = isCurrent ? form.securityAmount : (r.securityAmount ?? 0);
-    const rSecurityReturned = isCurrent ? form.securityReturned : Boolean((r as any).securityReturned);
-    aggSecurity += rSecurity;
-    const rStatus = isCurrent ? form.status : r.status;
-    aggSecurityRefundDue += rStatus === "returned" && rSecurityReturned ? 0 : rSecurity;
+    const pieces = relatedRentals.map((r) => {
+      const isCurrent = r.id === rental.id;
+      const rItem = getItem(r.itemId);
+      const rStartDate = isCurrent ? form.startDate : (r.startDate || "");
+      const rEndDate = isCurrent ? form.endDate : (r.endDate || "");
+      const rDeliveryDate = isCurrent ? form.deliveryDate : (r.deliveryDate || "");
+      const rDeliveryTime = isCurrent ? form.deliveryTime : ((r as any).deliveryTime || "");
+      const rDeliveryTimePeriod = isCurrent ? form.deliveryTimePeriod : ((r as any).deliveryTimePeriod || "");
+      const rEndTime = isCurrent ? form.endTime : ((r as any).endTime || "");
+      const rEndTimePeriod = isCurrent ? form.endTimePeriod : ((r as any).endTimePeriod || "");
+      const rQuantity = isSafaItem(rItem)
+        ? (isCurrent ? rentalQuantity : Math.max(1, Number((r as any).quantity) || 1))
+        : 1;
+      const rLostQuantity = isCurrent ? form.lostQuantity : (Number((r as any).lostQuantity) || 0);
+      const d = daysBetween(rStartDate, rEndDate);
+      const rRate = isCurrent
+        ? form.rate
+        : getRentalAmount(r, rItem ? rItem.pricePerDay * daysBetween(rStartDate, rEndDate) : 0);
+      const rSubtotal = rRate * rQuantity;
 
-    return { r, rItem, isCurrent, rStartDate, rEndDate, rDeliveryDate, rDeliveryTime, rDeliveryTimePeriod, rEndTime, rEndTimePeriod, d, rRate, rSubtotal, rQuantity, rLostQuantity };
-  });
-  const aggTotal = aggSubtotal + aggSecurity;
-  const aggFinalDue = Math.max(0, aggTotal - aggAdvance);
+      aggSubtotalLocal += rSubtotal;
+      aggAdvanceLocal += isCurrent ? form.advance : (r.advance ?? 0);
+      const rSecurity = isCurrent ? form.securityAmount : (r.securityAmount ?? 0);
+      const rSecurityReturned = isCurrent ? form.securityReturned : Boolean((r as any).securityReturned);
+      aggSecurityLocal += rSecurity;
+      const rStatus = isCurrent ? form.status : r.status;
+      aggSecurityRefundDueLocal += rStatus === "returned" && rSecurityReturned ? 0 : rSecurity;
+
+      return {
+        r,
+        rItem,
+        isCurrent,
+        rStartDate,
+        rEndDate,
+        rDeliveryDate,
+        rDeliveryTime,
+        rDeliveryTimePeriod,
+        rEndTime,
+        rEndTimePeriod,
+        d,
+        rRate,
+        rSubtotal,
+        rQuantity,
+        rLostQuantity,
+      };
+    });
+
+    const aggTotalLocal = aggSubtotalLocal + aggSecurityLocal;
+    const aggFinalDueLocal = Math.max(0, aggTotalLocal - aggAdvanceLocal);
+
+    return {
+      pieces,
+      aggSubtotal: aggSubtotalLocal,
+      aggAdvance: aggAdvanceLocal,
+      aggSecurity: aggSecurityLocal,
+      aggSecurityRefundDue: aggSecurityRefundDueLocal,
+      aggTotal: aggTotalLocal,
+      aggFinalDue: aggFinalDueLocal,
+    };
+  }, [relatedRentals, rental.id, getItem, form.startDate, form.endDate, form.deliveryDate, form.deliveryTime, form.deliveryTimePeriod, form.endTime, form.endTimePeriod, form.rate, rentalQuantity, form.lostQuantity, form.advance, form.securityAmount, form.securityReturned, form.status]);
+
+  const piecesData = computedPieces.pieces;
+  const aggSubtotal = computedPieces.aggSubtotal;
+  const aggAdvance = computedPieces.aggAdvance;
+  const aggSecurity = computedPieces.aggSecurity;
+  const aggSecurityRefundDue = computedPieces.aggSecurityRefundDue;
+  const aggTotal = computedPieces.aggTotal;
+  const aggFinalDue = computedPieces.aggFinalDue;
+
 
   function renderThermalBody() {
     let invoiceTitle = "INVOICE";
@@ -268,9 +316,20 @@ export function EditRentalDialog({
 
     return `
       <div class="thermal">
+        <div style="text-align: center; font-size: 11px; font-weight: bold; margin-bottom: 6px;">
+          <div style="margin-bottom: 2px;">॥ श्री शंखेश्वर पार्श्वनाथाय नमः ॥</div>
+          <div>॥ श्री आदिनाथाय नमः ॥</div>
+        </div>
+        <div style="text-align: center; margin-bottom: 6px;">
+          <h2 style="margin: 0; font-size: 14px;">SAJAN SAGAR COLLECTION</h2>
+          <div style="font-size: 10px; margin-top: 2px;">Address: Maharana Pratap chowk near gas agency</div>
+          <div style="font-size: 10px; margin-top: 2px;">Contact: 9907050222, 7509942222 | Insta: Sajansagar_</div>
+        </div>
         <div class="thermal-title">${invoiceTitle}</div>
         <div class="thermal-row"><span>Invoice</span><span># ${rental.billNo || rental.id}</span></div>
+        <div class="thermal-row"><span>Date</span><span>${form.billMakingDate ? new Date(form.billMakingDate).toLocaleDateString('en-IN') : "-"}</span></div>
         <div class="thermal-row"><span>Client</span><span>${customer?.name || rental.customerId}</span></div>
+        ${form.instaId ? `<div class="thermal-row"><span>Insta ID</span><span>${form.instaId}</span></div>` : ""}
         <div class="thermal-divider"></div>
 
         ${thermalPiecesHtml}
@@ -292,6 +351,9 @@ export function EditRentalDialog({
           <div class="thermal-sign-box">
             ${form.signature ? `<img src="${form.signature}" class="thermal-sign-img" />` : ""}
             <div class="thermal-sign-line">Authorized Signature</div>
+          </div>
+          <div style="text-align: center; margin-top: 10px;">
+            <span>${form.confirmationChecked ? "☑" : "☐"} Confirmed</span>
           </div>
         </div>
 
@@ -404,6 +466,7 @@ export function EditRentalDialog({
     const message = `*SAJAN SAGAR COLLECTION - ${invoiceTitle}*
       
 *Invoice:* ${rental.billNo || rental.id}
+*Date:* ${form.billMakingDate ? new Date(form.billMakingDate).toLocaleDateString('en-IN') : "-"}
 *Client:* ${customer?.name || rental.customerId}
 *Pieces:* 
 ${piecesData.map(p => `- ${p.rItem?.name || "Unknown"} (${p.r.itemNo || p.r.itemId}) [Qty: ${p.rQuantity}${p.rLostQuantity > 0 ? `, Lost: ${p.rLostQuantity}` : ""} | Del: ${formatDate(p.rDeliveryDate.slice(0, 10))}${p.rDeliveryTime ? ` ${p.rDeliveryTime}` : ""}${p.rDeliveryTimePeriod ? ` (${p.rDeliveryTimePeriod})` : ""} | Return: ${formatDate(p.rEndDate.slice(0, 10))}${p.rEndTime ? ` ${p.rEndTime}` : ""}${p.rEndTimePeriod ? ` (${p.rEndTimePeriod})` : ""}] - ${formatCurrencyINR(p.rSubtotal)}`).join("\n")}
@@ -464,22 +527,30 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
         .sign-box { flex: 0 0 40%; text-align: center; min-height: 50px; border-bottom: 1px solid #222; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 4px; }
         .sign-box p { margin: 0; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #666; }
         .sign-img { max-height: 45px; max-width: 100%; margin: 0 auto 4px auto; object-fit: contain; }
-        .invoice-half { min-height: 100%; padding: 5mm 0; box-sizing: border-box; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #222; }
+        .invoice-half { min-height: 100%; padding: 5mm 0; box-sizing: border-box; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #222; position: relative; z-index: 1; }
+        .watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 60px; color: rgba(212, 175, 55, 0.1); z-index: -1; white-space: nowrap; pointer-events: none; font-weight: bold; }
         tr { page-break-inside: avoid; }
       </style>
       <div class="invoice-half">
+        <div class="watermark">SAJAN SAGAR COLLECTION</div>
+        <div style="text-align: center; font-size: 14px; font-weight: bold; color: #d4af37; margin-bottom: 12px;">
+          <div style="margin-bottom: 4px;">॥ श्री शंखेश्वर पार्श्वनाथाय नमः ॥</div>
+          <div>॥ श्री आदिनाथाय नमः ॥</div>
+        </div>
         <div class="header">
           <svg class="logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
             <rect width="100" height="100" fill="#111" rx="8" />
             <text x="50" y="62" text-anchor="middle" font-family="Georgia, serif" font-size="28" fill="#d4af37" font-style="italic">SS</text>
           </svg>
           <div class="company-info">
-            <h1>SAJAN SAGAR COLLECTION</h1>
-            <p>Rental Point</p>
+            <h1 style="margin-bottom: 4px;">SAJAN SAGAR COLLECTION</h1>
+            <p style="text-transform: none; margin-bottom: 2px;">Address: Maharana Pratap chowk near gas agency</p>
+            <p style="text-transform: none; margin-bottom: 2px; color: #111;">Contact: <strong>9907050222, 7509942222</strong> | Insta: <strong>Sajansagar_</strong></p>
           </div>
           <div class="invoice-title">
             <h2>${invoiceTitle}</h2>
             <p># ${rental.billNo || rental.id}</p>
+            <p>Date: ${form.billMakingDate ? new Date(form.billMakingDate).toLocaleDateString('en-IN') : "-"}</p>
           </div>
         </div>
         
@@ -490,6 +561,7 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
             <p class="value">${customer?.email || ""}</p>
             <p class="value">${customer?.phone || ""}</p>
             <p class="value">${form.address || rental.address || ""}</p>
+            ${form.instaId ? `<p class="value"><strong>Insta ID:</strong> ${form.instaId}</p>` : ""}
           </div>
           <div class="col" style="text-align: right;">
             <div class="label">Rental Details</div>
@@ -526,12 +598,17 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
           ${getPoliciesHtml()}
         </div>
 
-        <div class="signatures" style="margin-top: 30px;">
-          <div class="sign-box">
-            ${form.signature ? `<img src="${form.signature}" class="sign-img" />` : ""}
-            <p>Authorized Signature</p>
+        <div class="signatures" style="margin-top: 30px; display: flex; justify-content: space-between; align-items: flex-end;">
+          <div style="display: flex; align-items: flex-end; gap: 20px; flex: 1;">
+            <div class="sign-box" style="flex: 1;">
+              ${form.signature ? `<img src="${form.signature}" class="sign-img" />` : ""}
+              <p>Authorized Signature</p>
+            </div>
+            <div style="padding-bottom: 5px;">
+              <p class="value"><span style="font-size: 22px; vertical-align: middle;">${form.confirmationChecked ? "☑" : "☐"}</span> <strong style="vertical-align: middle;">Confirmed</strong></p>
+            </div>
           </div>
-          <div class="sign-box">
+          <div class="sign-box" style="flex: 1;">
             <p>Client Signature</p>
           </div>
         </div>
@@ -727,6 +804,10 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
         signature: parsed.data.signature ?? "",
         status: parsed.data.status,
         total: subtotal,
+        ownerNumber: parsed.data.ownerNumber ?? "",
+        instaId: parsed.data.instaId ?? "",
+        billMakingDate: parsed.data.billMakingDate ?? "",
+        confirmationChecked: parsed.data.confirmationChecked ?? false,
       };
 
       const updated = await updateRental(rental.id, payload);

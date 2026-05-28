@@ -216,7 +216,7 @@ export function NewRentalDialog({
             }
           </style>
           ${getInvoiceContent({
-            form: { ...form, discount: 0 } as any,
+            form: { ...form } as any, 
             selectedCustomer,
             items,
             piecesTotal,
@@ -296,7 +296,7 @@ export function NewRentalDialog({
         </head>
         <body>
           ${getInvoiceContent({
-            form: { ...form, discount: 0 } as any,
+            form: { ...form } as any,
             selectedCustomer,
             items,
             piecesTotal,
