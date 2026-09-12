@@ -1,11 +1,30 @@
 // Web build safety: `process` is not available in browsers.
 // Prefer Vite-style env first, then fallback to EXPO_PUBLIC_*
-const API_ROOT =
+export const API_ROOT =
   (typeof import.meta !== 'undefined' && ((import.meta as any).env?.VITE_API_URL || (import.meta as any).env?.EXPO_PUBLIC_API_URL)) ||
   (typeof process !== 'undefined'
     ? (process as any).env?.VITE_API_URL || (process as any).env?.EXPO_PUBLIC_API_URL
     : undefined) ||
   'http://localhost:3011';
+
+export const FALLBACK_IMG =
+  "data:image/svg+xml;utf8," +
+  encodeURIComponent(
+    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'><rect width='300' height='400' fill='%23edefe9'/><rect x='12' y='12' width='276' height='376' rx='6' fill='none' stroke='%23d3dbcb' stroke-width='1.5' stroke-dasharray='4 4'/><g opacity='0.6' transform='translate(100, 110)'><path d='M50 10 L70 30 L85 15 L100 30 L100 130 C100 135 95 140 90 140 L10 140 C5 140 0 135 0 130 L0 30 L15 15 L30 30 Z' fill='none' stroke='%23a18a4a' stroke-width='2.5'/><path d='M35 15 C35 30 65 30 65 15' fill='none' stroke='%23a18a4a' stroke-width='2.5'/></g><text x='150' y='275' text-anchor='middle' font-family='Georgia, serif' font-size='16' font-weight='600' fill='%238c763d' letter-spacing='2'>SAJAN SAGAR</text><text x='150' y='298' text-anchor='middle' font-family='sans-serif' font-size='10' fill='%236f7e6c' letter-spacing='2'>COLLECTION</text></svg>`,
+  );
+
+export function formatImageUrl(url?: string): string {
+  if (!url || typeof url !== 'string' || !url.trim()) {
+    return FALLBACK_IMG;
+  }
+  const trimmed = url.trim();
+  if (trimmed.startsWith('data:') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  const base = (API_ROOT || 'http://localhost:3011').replace(/\/$/, '');
+  return `${base}${cleanPath}`;
+}
 
 const API_BASE = `${API_ROOT.replace(/\/$/, '')}/api`;
 
@@ -27,6 +46,7 @@ export interface Item {
   status: 'available' | 'rented' | 'cleaning' | 'reserved';
   image: string;
   timesRented: number;
+  branch?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -43,6 +63,7 @@ export interface Customer {
   totalSpent: number;
   rentals: number;
   joined: string;
+  branch?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -80,6 +101,7 @@ export interface Rental {
   penalty: number;
   total: number;
   status: 'active' | 'upcoming' | 'returned' | 'overdue';
+  branch?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -92,6 +114,7 @@ export interface User {
   phone?: string;
   role: 'admin' | 'employee';
   status?: 'active' | 'pending';
+  branch?: string;
 }
 
 async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
@@ -179,7 +202,7 @@ async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
 
 // Items API
 export const itemsApi = {
-  getAll: () => apiRequest<Item[]>(`${API_BASE}/items`),
+  getAll: (branch?: string) => apiRequest<Item[]>(`${API_BASE}/items${branch ? `?branch=${encodeURIComponent(branch)}` : ''}`),
   getById: (id: string) => apiRequest<Item>(`${API_BASE}/items/${id}`),
   create: (data: Omit<Item, '_id' | 'id' | 'customId' | 'timesRented' | 'createdAt' | 'updatedAt'>) =>
     apiRequest<Item>(`${API_BASE}/items`, {
@@ -187,10 +210,21 @@ export const itemsApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }),
-  uploadExcel: (file: any) => { // Changed from `File` to `any` for React Native
+  uploadExcel: (file: any, branch?: string) => { // Changed from `File` to `any` for React Native
     const formData = new FormData();
     formData.append('excelFile', file);
+    if (branch) {
+      formData.append('branch', branch);
+    }
     return apiRequest<{ message: string; items: { id: string; name: string }[]; errors?: string[] }>(`${API_BASE}/items/upload-excel`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
+  uploadImage: (file: Blob | File) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    return apiRequest<{ url: string }>(`${API_BASE}/items/upload-image`, {
       method: 'POST',
       body: formData,
     });
@@ -206,7 +240,7 @@ export const itemsApi = {
 
 // Customers API
 export const customersApi = {
-  getAll: () => apiRequest<Customer[]>(`${API_BASE}/customers`),
+  getAll: (branch?: string) => apiRequest<Customer[]>(`${API_BASE}/customers${branch ? `?branch=${encodeURIComponent(branch)}` : ''}`),
   getById: (id: string) => apiRequest<Customer>(`${API_BASE}/customers/${id}`),
   create: (data: Omit<Customer, '_id' | 'id' | 'customId' | 'totalSpent' | 'rentals' | 'joined' | 'createdAt' | 'updatedAt'>) =>
     apiRequest<Customer>(`${API_BASE}/customers`, {
@@ -230,7 +264,7 @@ export const billsApi = {
 
 // Rentals API
 export const rentalsApi = {
-  getAll: () => apiRequest<Rental[]>(`${API_BASE}/rentals`),
+  getAll: (branch?: string) => apiRequest<Rental[]>(`${API_BASE}/rentals${branch ? `?branch=${encodeURIComponent(branch)}` : ''}`),
   getById: (id: string) => apiRequest<Rental>(`${API_BASE}/rentals/${id}`),
   create: (data: Omit<Rental, '_id' | 'id' | 'customId' | 'createdAt' | 'updatedAt'>) =>
     apiRequest<Rental>(`${API_BASE}/rentals`, {
@@ -259,9 +293,9 @@ export const rentalsApi = {
 
 // Auth API
 export const authApi = {
-  login: (data: { phone: string; password: string }) =>
+  login: (data: { phone?: string; email?: string; password: string; branch?: string }) =>
     apiRequest<User>(`${API_BASE}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
-  signup: (data: { name: string; phone: string; password: string; role: 'employee'; status: 'pending' }) =>
+  signup: (data: { name: string; phone: string; password: string; role: 'employee' | 'reception'; status: 'pending'; branch?: string }) =>
     apiRequest<User>(`${API_BASE}/auth/signup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
   getUsers: () => apiRequest<User[]>(`${API_BASE}/auth/users`),
   updateUserStatus: (identifier: string, status: 'active' | 'pending') =>

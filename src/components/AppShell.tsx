@@ -16,12 +16,20 @@ import {
   LogOut,
   FileText,
   Package,
+  Building2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { NewRentalDialog } from "@/components/forms/NewRentalDialog";
 import { AddPieceDialog } from "@/components/forms/AddPieceDialog";
 import { useStore } from "@/data/store";
@@ -67,7 +75,7 @@ const nav = [
 function NavList({ pathname, role, onNavigate }: { pathname: string; role: string; onNavigate?: () => void }) {
   const visibleNav = nav.filter(item => (item.roles as readonly string[]).includes(role));
   return (
-    <nav className="flex-1 overflow-y-auto px-3 py-6 space-y-1">
+    <nav className="flex-1 overflow-y-auto px-3 py-6 space-y-1.5">
       {visibleNav.map((item) => {
         const Icon = item.icon;
         const active = item.exact
@@ -79,19 +87,21 @@ function NavList({ pathname, role, onNavigate }: { pathname: string; role: strin
             key={item.to}
             to={item.to}
             onClick={onNavigate}
-            className={`group flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ${
+            className={`group relative flex items-center gap-3.5 rounded-xl px-3.5 py-2.5 text-xs font-semibold tracking-wide transition-all duration-200 ${
               active
-                ? "bg-sidebar-accent text-foreground shadow-glow"
-                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-foreground"
+                ? "bg-gold/10 text-gold border border-gold/30 shadow-sm"
+                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 hover:translate-x-1"
             }`}
           >
             <Icon
-              className={`h-4 w-4 ${
-                active ? "text-gold" : "text-sidebar-foreground/60 group-hover:text-gold"
+              className={`h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110 ${
+                active ? "text-gold" : "text-slate-400 group-hover:text-gold"
               }`}
             />
-            <span className="tracking-wide">{item.label}</span>
-            {active && <span className="ml-auto h-1 w-1 rounded-full bg-gold" />}
+            <span className="truncate">{item.label}</span>
+            {active && (
+              <span className="ml-auto h-2 w-2 rounded-full bg-gold shadow-[0_0_6px_#b8860b]" />
+            )}
           </Link>
         );
       })}
@@ -122,7 +132,7 @@ function Brand() {
 
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { searchQuery, setSearchQuery, rentals, items } = useStore();
+  const { searchQuery, setSearchQuery, rentals, items, selectedBranch, setSelectedBranch } = useStore();
   const [pathname, setPathname] = useState(typeof window !== "undefined" ? window.location.pathname : "/");
 
   useEffect(() => {
@@ -279,6 +289,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 onChange={(event) => handleSearchChange(event.currentTarget.value)}
                 className="border-border bg-secondary/50 pl-9 focus-visible:ring-gold/40"
               />
+            </div>
+
+            {/* Active Open Shop Indicator */}
+            <div className="flex items-center gap-1.5 bg-gold/10 border border-gold/30 rounded-md px-3 py-1.5 text-xs font-semibold text-gold shadow-sm">
+              <Building2 className="h-4 w-4 shrink-0" />
+              <span>{selectedBranch || "Shop 1"}</span>
             </div>
 
             <div className="ml-auto flex items-center gap-1 sm:gap-2">

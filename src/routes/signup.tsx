@@ -3,6 +3,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import brandLogo from "@/assets/logo.png";
 import { authApi } from "@/lib/api";
 import { Link } from "../App";
@@ -15,22 +22,20 @@ const useNavigate = () => {
   };
 };
 
-
-
 export default function SignupPage() {
-
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [branch, setBranch] = useState("Shop 1");
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    console.log("[Signup] Attempting signup for:", { name, phone });
+    console.log("[Signup] Attempting signup for:", { name, phone, branch });
     
     try {
-      await authApi.signup({ name, phone, password, role: "employee", status: "pending" });
+      await authApi.signup({ name, phone, password, role: "employee", status: "pending", branch });
       console.log("[Signup] Success!");
       
       toast.success("Signup successful! Your account is pending admin approval.");
@@ -50,6 +55,18 @@ export default function SignupPage() {
         </div>
         
         <form onSubmit={handleSignup} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="branch">Select Branch</Label>
+            <Select value={branch} onValueChange={setBranch}>
+              <SelectTrigger id="branch">
+                <SelectValue placeholder="Select Branch" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Shop 1">Shop 1</SelectItem>
+                <SelectItem value="Shop 2">Shop 2</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="name">Full Name</Label>
             <Input 

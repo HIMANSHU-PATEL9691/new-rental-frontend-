@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import heroImg from "@/assets/hero-velvet.jpg";
 
-const PIE_COLORS = ["var(--gold)", "var(--gold-2)", "var(--gold-3)", "var(--gold-4)"];
+const PIE_COLORS = ["#d4af37", "#10b981", "#3b82f6", "#f59e0b", "#8b5cf6"];
 
 function formatDayLabel(date: Date) {
   return date.toLocaleDateString(undefined, { weekday: "short" });
@@ -397,7 +397,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <section className="mb-8 grid grid-cols-2 gap-3 sm:mb-10 sm:gap-5 lg:grid-cols-5">
+      <section className="mb-8 grid grid-cols-2 gap-3 sm:mb-10 sm:gap-4 lg:grid-cols-4 xl:grid-cols-6">
         {dashboardStats.stats.map((s) => {
           const Icon = s.icon;
           return (
@@ -412,18 +412,20 @@ export default function DashboardPage() {
                   openDashboardData(s.to, s.search);
                 }
               }}
-              className="glass-panel cursor-pointer transition-colors hover:bg-secondary/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+              className="glass-card hover-lift cursor-pointer rounded-xl p-4 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
             >
-              <CardContent className="p-4 sm:p-5">
-                <div className="mb-4 flex items-center justify-between gap-2">
-                  <span className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
+              <CardContent className="p-0">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     {s.label}
                   </span>
-                  <Icon className="h-4 w-4 shrink-0 text-gold" />
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gold/10 text-gold border border-gold/20">
+                    <Icon className="h-3.5 w-3.5" />
+                  </div>
                 </div>
-                <div className="font-display text-3xl leading-none">{s.value}</div>
-                <div className="mt-3 flex items-center text-xs text-emerald">
-                  <ArrowUpRight className="mr-1 h-3 w-3" /> {s.helper}
+                <div className="font-display text-2xl sm:text-3xl font-bold leading-tight text-foreground">{s.value}</div>
+                <div className="mt-2.5 flex items-center text-[11px] font-medium text-emerald">
+                  <ArrowUpRight className="mr-0.5 h-3 w-3 shrink-0" /> {s.helper}
                 </div>
               </CardContent>
             </Card>

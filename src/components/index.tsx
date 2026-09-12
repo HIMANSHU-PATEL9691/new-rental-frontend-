@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import heroImg from "@/assets/hero-velvet.jpg";
 
-export const Route = createFileRoute("/")({
+export const Route = (createFileRoute as any)("/")({
   head: () => ({
     meta: [
       { title: "Dashboard - Velvet Vault" },

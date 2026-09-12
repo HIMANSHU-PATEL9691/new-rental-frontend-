@@ -139,18 +139,10 @@ export default function CustomersPage() {
           </Card>
         )}
         {filteredCustomers.map((c) => (
-              <Card
-                key={c.id}
-                className="glass-panel transition-shadow cursor-pointer"
-                role="button"
-                tabIndex={0}
-                onClick={() => navigate({ to: "/customers/$customerId", params: { customerId: c.id } })}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    navigate({ to: "/customers/$customerId", params: { customerId: c.id } });
-                  }
-                }}
-              >
+          <Card
+            key={c.id}
+            className="glass-card rounded-2xl border border-slate-200/80 transition-all p-0"
+          >
             <CardContent className="p-6 relative">
               <div className="flex items-start gap-4">
                 <Avatar className="h-14 w-14 border border-gold/40">

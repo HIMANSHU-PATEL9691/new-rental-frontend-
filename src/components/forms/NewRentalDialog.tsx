@@ -88,10 +88,12 @@ export function NewRentalDialog({
   trigger,
   open,
   onOpenChange,
+  preselectedItem,
 }: {
   trigger?: ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  preselectedItem?: any;
 }) {
   const { items, customers, rentals, addRental } = useStore();
   const [internalOpen, setInternalOpen] = useState(false);
@@ -130,6 +132,31 @@ export function NewRentalDialog({
   const [addPieceOpen, setAddPieceOpen] = useState(false);
   const [addClientOpen, setAddClientOpen] = useState(false);
   const [showInvoice, setShowInvoice] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && preselectedItem) {
+      setForm((prev) => ({
+        ...prev,
+        pieces: [
+          {
+            id: Math.random().toString(),
+            itemId: preselectedItem.id,
+            itemNo: preselectedItem.customId || preselectedItem.id || "",
+            deliveryDate: today(),
+            deliveryTime: "10:00",
+            deliveryTimePeriod: "Morning",
+            startDate: today(),
+            endDate: today(),
+            endTime: "10:00",
+            endTimePeriod: "Morning",
+            quantity: 1,
+            rate: preselectedItem.pricePerDay || 0,
+            remark: "",
+          },
+        ],
+      }));
+    }
+  }, [isOpen, preselectedItem]);
 
   const selectedCustomer = useMemo(
     () => customers.find((c) => c.id === form.customerId),

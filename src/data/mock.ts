@@ -23,6 +23,7 @@ export interface Item {
   status: ItemStatus;
   image: string;
   timesRented: number;
+  branch?: string;
 }
 
 export interface Customer {
@@ -35,6 +36,7 @@ export interface Customer {
   totalSpent: number;
   rentals: number;
   joined: string;
+  branch?: string;
 }
 
 export interface Rental {
@@ -61,9 +63,10 @@ export interface Rental {
   securityAmount: number;
   signature?: string;
   returnedAt?: string;
-  penalty: number;
+  penalty?: number;
   total: number;
   status: RentalStatus;
+  branch?: string;
 }
 
 export const items: Item[] = [

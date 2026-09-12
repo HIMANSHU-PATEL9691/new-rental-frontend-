@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Package, CheckCircle, Calendar, ArrowDownLeft, Search } from "lucide-react";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ViewInvoiceDialog } from "@/components/forms/ViewInvoiceDialog";
 import {
   Select,
   SelectContent,
@@ -270,11 +271,13 @@ export function DeliveriesPage() {
                       <StatusBadge status={rental.status} kind="rental" />
                     </td>
                     <td className="p-4 align-middle text-right">
-                      {!canUpdateDeliveries && (
-                        <Button size="sm" variant="outline" disabled>
-                          View Only
-                        </Button>
-                      )}
+                      <div className="flex items-center justify-end gap-2">
+                        <ViewInvoiceDialog rental={rental} />
+                        {!canUpdateDeliveries && (
+                          <Button size="sm" variant="outline" disabled>
+                            View Only
+                          </Button>
+                        )}
                       {canUpdateDeliveries && rental.status === "upcoming" && (
                         <Button
                           size="sm"
@@ -389,6 +392,7 @@ export function DeliveriesPage() {
                           Returned
                         </Button>
                       )}
+                      </div>
                     </td>
                   </tr>
             );

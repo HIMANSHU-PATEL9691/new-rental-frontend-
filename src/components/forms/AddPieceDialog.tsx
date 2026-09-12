@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { useStore } from "@/data/store";
 import { formatCurrencyINR } from "@/lib/utils";
+import { formatImageUrl, FALLBACK_IMG, itemsApi } from "@/lib/api";
 import { X } from "lucide-react";
 import type { ItemStatus } from "@/data/mock";
 
@@ -65,12 +66,6 @@ const schema = z.object({
   images: z.array(z.string()).optional(),
 });
 
-const FALLBACK_IMG =
-  "data:image/svg+xml;utf8," +
-  encodeURIComponent(
-    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'><rect width='300' height='400' fill='%23eee'/><text x='150' y='200' text-anchor='middle' font-family='serif' font-size='28' fill='%23999'>Velvet Vault</text></svg>`,
-  );
-
 export function AddPieceDialog({
   trigger,
   open,
@@ -91,7 +86,7 @@ export function AddPieceDialog({
   };
 
   const defaultCategory = categoryOptions[0] ?? CATEGORIES.WOMENS;
-  const defaultSubcategory = categorySubcategoryMap[defaultCategory]?.[0] ?? "";
+  const defaultSubcategory = (categorySubcategoryMap as Record<string, string[]>)[defaultCategory]?.[0] ?? "";
 
   const { addItem } = useStore();
   const [internalOpen, setInternalOpen] = useState(false);
@@ -201,6 +196,16 @@ export function AddPieceDialog({
       if (!file.type.startsWith("image/")) {
         toast.error(`File ${file.name} is not an image`);
         continue;
+      }
+      try {
+        const uploaded = await itemsApi.uploadImage(file);
+        if (uploaded && uploaded.url) {
+          setForm((current) => ({ ...current, images: [...current.images, uploaded.url] }));
+          toast.success(`Uploaded ${file.name}`);
+          continue;
+        }
+      } catch (err) {
+        console.warn("Server upload failed, compressing as data URL fallback", err);
       }
       try {
         const compressed = await compressImage(file);
@@ -493,7 +498,7 @@ export function AddPieceDialog({
                   {form.images.map((img, idx) => (
                     <div key={idx} className="relative group shrink-0">
                       <img
-                        src={img}
+                        src={formatImageUrl(img)}
                         alt={`Preview ${idx + 1}`}
                         className="h-20 w-16 sm:h-20 sm:w-16 rounded-sm border border-border object-cover shadow-sm"
                       />

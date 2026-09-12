@@ -3,6 +3,7 @@ import { useStore } from "@/data/store";
 import { Button } from "@/components/ui/button";
 import { MessageCircle, Clock } from "lucide-react";
 import { formatCurrencyINR } from "@/lib/utils";
+import { ViewInvoiceDialog } from "@/components/forms/ViewInvoiceDialog";
 
 function formatDate(dateStr: string) {
   if (!dateStr) return "";
@@ -164,23 +165,26 @@ export function ReturnItemsPage() {
                       </span>
                     </td>
                     <td className="p-4 align-middle text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={!rental.customer?.phone}
-                        onClick={() =>
-                          handleWhatsApp(
-                            rental.customer!.phone,
-                            rental.customer!.name,
-                            rental.item?.name || "Item",
-                            formatDate(rental.endDate)
-                          )
-                        }
-                        className="gap-2 text-green-600 hover:text-green-700 hover:bg-green-50"
-                      >
-                        <MessageCircle className="w-4 h-4" />
-                        WhatsApp
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <ViewInvoiceDialog rental={rental} />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={!rental.customer?.phone}
+                          onClick={() =>
+                            handleWhatsApp(
+                              rental.customer!.phone,
+                              rental.customer!.name,
+                              rental.item?.name || "Item",
+                              formatDate(rental.endDate)
+                            )
+                          }
+                          className="gap-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          WhatsApp
+                        </Button>
+                      </div>
                     </td>
                   </tr>
             );

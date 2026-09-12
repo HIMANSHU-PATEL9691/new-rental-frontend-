@@ -10,17 +10,12 @@ import {
   itemsApi,
   customersApi,
   rentalsApi,
+  formatImageUrl,
+  FALLBACK_IMG,
   type Item,
   type Customer,
   type Rental,
 } from "@/lib/api";
-
-// Fallback image for items without image
-const FALLBACK_IMG =
-  "data:image/svg+xml;utf8," +
-  encodeURIComponent(
-    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 400'><rect width='300' height='400' fill='%23eee'/><text x='150' y='200' text-anchor='middle' font-family='serif' font-size='28' fill='%23999'>Velvet Vault</text></svg>`,
-  );
 
 interface StoreState {
   items: Item[];
@@ -29,6 +24,8 @@ interface StoreState {
   loading: boolean;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  selectedBranch: string;
+  setSelectedBranch: (branch: string) => void;
   addItem: (item: Omit<Item, "_id" | "id" | "customId" | "timesRented" | "createdAt" | "updatedAt">) => Promise<Item>;
   uploadExcel: (file: File) => Promise<{ message: string; items: { id: string; name: string }[]; errors?: string[] }>;
   deleteItem: (id: string) => Promise<void>;
@@ -42,7 +39,7 @@ interface StoreState {
   updateItem: (id: string, data: Partial<Item>) => Promise<Item>;
   getItem: (id: string) => Item | undefined;
   getCustomer: (id: string) => Customer | undefined;
-  refreshData: () => Promise<void>;
+  refreshData: (branchOverride?: string) => Promise<void>;
 }
 
 
@@ -50,10 +47,18 @@ const StoreContext = createContext<StoreState | null>(null);
 
 // Transform backend data to match frontend interface
 function transformItem(item: any): Item {
+  const rawImages = Array.isArray(item.images) && item.images.length > 0
+    ? item.images
+    : (item.image ? [item.image] : []);
+  
+  const formattedImages = rawImages.map((img: string) => formatImageUrl(img)).filter(Boolean);
+  const singleImage = formatImageUrl(item.image);
+
   return {
     ...item,
     id: item.customId,
-    image: item.image || FALLBACK_IMG,
+    image: singleImage,
+    images: formattedImages.length > 0 ? formattedImages : [singleImage],
     quantity: Number(item.quantity) || 1,
   };
 }
@@ -101,15 +106,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [rentals, setRentals] = useState<Rental[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedBranch, setSelectedBranchState] = useState<string>(() => {
+    if (typeof window !== "undefined" && window.localStorage) {
+      return window.localStorage.getItem("selected_branch") || "Shop 1";
+    }
+    return "Shop 1";
+  });
 
-  const refreshData = async () => {
-    console.info("[store] refreshData started");
+  const setSelectedBranch = (branch: string) => {
+    if (typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.setItem("selected_branch", branch);
+    }
+    setSelectedBranchState(branch);
+  };
+
+  const getEffectiveBranch = () => {
+    return selectedBranch || "Shop 1";
+  };
+
+  const refreshData = async (branchOverride?: string) => {
+    const activeBranch = branchOverride !== undefined ? branchOverride : selectedBranch;
+    console.info("[store] refreshData started for branch:", activeBranch);
     try {
       console.info("[store] fetching items, customers, and rentals");
       const [itemsData, customersData, rentalsData] = await Promise.all([
-        itemsApi.getAll(),
-        customersApi.getAll(),
-        rentalsApi.getAll(),
+        itemsApi.getAll(activeBranch),
+        customersApi.getAll(activeBranch),
+        rentalsApi.getAll(activeBranch),
       ]);
       console.info("[store] fetch complete", {
         items: itemsData.length,
@@ -129,12 +152,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    refreshData();
-  }, []);
+    const syncBranchFromStorage = () => {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const stored = window.localStorage.getItem("selected_branch");
+        if (stored && stored !== selectedBranch) {
+          console.info("[store] Syncing selectedBranch from storage:", stored);
+          setSelectedBranchState(stored);
+        }
+      }
+    };
+
+    window.addEventListener("popstate", syncBranchFromStorage);
+    window.addEventListener("storage", syncBranchFromStorage);
+    syncBranchFromStorage();
+
+    return () => {
+      window.removeEventListener("popstate", syncBranchFromStorage);
+      window.removeEventListener("storage", syncBranchFromStorage);
+    };
+  }, [selectedBranch]);
+
+  useEffect(() => {
+    refreshData(selectedBranch);
+  }, [selectedBranch]);
 
   const value = useMemo<StoreState>(
     () => ({
-
       items,
       customers,
       rentals,
@@ -144,6 +187,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         console.info("[store] searchQuery updated", { query });
         setSearchQuery(query);
       },
+      selectedBranch,
+      setSelectedBranch,
       addItem: async (data) => {
         console.info("[store] addItem started", {
           name: data.name,
@@ -151,7 +196,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           hasImage: Boolean(data.image),
           imageLength: data.image?.length ?? 0,
         });
-        const newItem = await itemsApi.create(data);
+        const branchToUse = data.branch || getEffectiveBranch();
+        const newItem = await itemsApi.create({ ...data, branch: branchToUse });
         console.info("[store] addItem backend response", newItem);
         const transformed = transformItem(newItem);
         setItems((prev) => [transformed, ...prev]);
@@ -159,11 +205,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return transformed;
       },
       uploadExcel: async (file) => {
-        console.info("[store] uploadExcel started", { fileName: file.name, fileSize: file.size });
-        const result = await itemsApi.uploadExcel(file);
+        console.info("[store] uploadExcel started", { fileName: file.name, fileSize: file.size, branch: selectedBranch });
+        const result = await itemsApi.uploadExcel(file, selectedBranch);
         console.info("[store] uploadExcel backend response", result);
         // Refresh items after upload
-        await refreshData();
+        await refreshData(selectedBranch);
         console.info("[store] uploadExcel data refreshed");
         return result;
       },
@@ -186,7 +232,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       addCustomer: async (data) => {
         console.info("[store] addCustomer started", data);
-        const newCustomer = await customersApi.create(data);
+        const branchToUse = data.branch || getEffectiveBranch();
+        const newCustomer = await customersApi.create({ ...data, branch: branchToUse });
         console.info("[store] addCustomer backend response", newCustomer);
         const transformed = transformCustomer(newCustomer);
         setCustomers((prev) => [transformed, ...prev]);
@@ -195,7 +242,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       },
       addRental: async (data) => {
         console.info("[store] addRental started", data);
-        const newRental = await rentalsApi.create(data);
+        const branchToUse = data.branch || getEffectiveBranch();
+        const newRental = await rentalsApi.create({ ...data, branch: branchToUse });
         console.info("[store] addRental backend response", newRental);
         // Refresh data from backend to ensure all state is updated correctly
         await refreshData();
@@ -229,7 +277,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       getCustomer: (id) => customers.find((c) => c.id === id),
       refreshData,
     }),
-    [items, customers, rentals, loading, searchQuery],
+    [items, customers, rentals, loading, searchQuery, selectedBranch],
   );
 
   return (

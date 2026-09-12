@@ -22,9 +22,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-
 import { useStore } from "@/data/store";
 import { formatCurrencyINR } from "@/lib/utils";
+import { formatImageUrl, itemsApi } from "@/lib/api";
 import { X } from "lucide-react";
 
 import type { Item, ItemStatus } from "@/data/mock";
@@ -125,23 +125,27 @@ export function EditPieceDialog({
   }, [item]);
 
   // keep form in sync when item changes (e.g. rerender)
-  // (avoid setState during render to prevent infinite re-renders)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useMemo(() => {
     if (!open) setForm(defaultForm);
     return null;
   }, [open, defaultForm]);
 
-  function handleImagesUpload(files: FileList | null) {
+  async function handleImagesUpload(files: FileList | null) {
     if (!files) return;
-    Array.from(files).forEach((file) => {
+    for (const file of Array.from(files)) {
       if (!file.type.startsWith("image/")) {
         toast.error(`File ${file.name} is not an image`);
-        return;
+        continue;
       }
-      if (file.size > 2 * 1024 * 1024) {
-        toast.error(`Image ${file.name} must be smaller than 2 MB`);
-        return;
+      try {
+        const uploaded = await itemsApi.uploadImage(file);
+        if (uploaded && uploaded.url) {
+          setForm((c) => ({ ...c, images: [...c.images, uploaded.url] }));
+          toast.success(`Uploaded ${file.name}`);
+          continue;
+        }
+      } catch (e) {
+        console.warn("Server upload failed, converting to base64 fallback", e);
       }
 
       const reader = new FileReader();
@@ -150,11 +154,8 @@ export function EditPieceDialog({
           setForm((c) => ({ ...c, images: [...c.images, reader.result as string] }));
         }
       };
-      reader.onerror = () => {
-        toast.error(`Could not read image file ${file.name}`);
-      };
       reader.readAsDataURL(file);
-    });
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -369,7 +370,7 @@ export function EditPieceDialog({
                   {form.images.map((img: string, idx: number) => (
                     <div key={idx} className="relative group shrink-0">
                       <img
-                        src={img}
+                        src={formatImageUrl(img)}
                         alt={`Preview ${idx + 1}`}
                         className="h-20 w-16 rounded-sm border border-border object-cover shadow-sm"
                       />

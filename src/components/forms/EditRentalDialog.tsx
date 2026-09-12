@@ -677,17 +677,16 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
     const filename = `Invoice-${filenameSafe}.pdf`;
 
     try {
-      const htmlString = `
-        <div id="pdf-container" style="background-color: #ffffff; color: #000000; padding: 0; margin: 0; width: 100%;">
-          <style>
-            #pdf-container, #pdf-container * {
-              border-color: #e5e7eb !important;
-              outline-color: #e5e7eb !important;
-            }
-          </style>
-          ${getInvoiceContent()}
-        </div>
-      `;
+      const tempDiv = document.createElement("div");
+      tempDiv.id = "pdf-container-node";
+      tempDiv.style.position = "fixed";
+      tempDiv.style.left = "-9999px";
+      tempDiv.style.top = "-9999px";
+      tempDiv.style.width = "794px";
+      tempDiv.style.backgroundColor = "#ffffff";
+      tempDiv.style.color = "#000000";
+      tempDiv.innerHTML = getInvoiceContent();
+      document.body.appendChild(tempDiv);
 
       await html2pdf()
         .set({
@@ -698,26 +697,63 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
             scale: 2,
             useCORS: true,
             backgroundColor: "#ffffff",
-            ignoreElements: (element: Element) => {
-              if (element.tagName === "STYLE" || element.tagName === "LINK") {
-                const href = (element as HTMLLinkElement).href || "";
-                if (href.includes("fonts.googleapis") || href.includes("fonts.gstatic")) return false;
-                if (element.closest && element.closest("#pdf-container")) return false;
-                return true;
+            onclone: (clonedDoc: Document) => {
+              const win = clonedDoc.defaultView || window;
+              
+              if (win && win.getComputedStyle) {
+                const origGetComputedStyle = win.getComputedStyle;
+                win.getComputedStyle = function (el: Element, pseudoElt?: string | null) {
+                  const style = origGetComputedStyle.call(win, el, pseudoElt);
+                  return new Proxy(style, {
+                    get(target, prop, receiver) {
+                      const val = Reflect.get(target, prop, receiver);
+                      if (typeof val === "string" && val.includes("oklch")) {
+                        const propName = String(prop).toLowerCase();
+                        if (propName.includes("background")) return "rgb(255, 255, 255)";
+                        if (propName.includes("border")) return "rgb(212, 175, 55)";
+                        return "rgb(17, 17, 17)";
+                      }
+                      return val;
+                    },
+                  });
+                };
               }
-              return false;
+
+              const styleEls = Array.from(clonedDoc.getElementsByTagName("style"));
+              styleEls.forEach((style) => {
+                if (style.textContent && style.textContent.includes("oklch")) {
+                  style.textContent = style.textContent.replace(/oklch\([^)]+\)/gi, "#111111");
+                }
+              });
+
+              const linkEls = Array.from(clonedDoc.querySelectorAll("link[rel='stylesheet']"));
+              linkEls.forEach((link) => {
+                const href = link.getAttribute("href") || "";
+                if (!href.includes("fonts.googleapis") && !href.includes("fonts.gstatic")) {
+                  link.remove();
+                }
+              });
+
+              const allEls = Array.from(clonedDoc.querySelectorAll("*"));
+              allEls.forEach((el) => {
+                const styleAttr = el.getAttribute("style");
+                if (styleAttr && styleAttr.includes("oklch")) {
+                  el.setAttribute("style", styleAttr.replace(/oklch\([^)]+\)/gi, "#111111"));
+                }
+              });
             },
           },
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
         })
-        .from(htmlString)
+        .from(tempDiv)
         .save();
 
-
+      document.body.removeChild(tempDiv);
       toast.success("Bill downloaded as PDF");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to generate PDF bill");
+      toast.info("Opening PDF print window...");
+      printInvoice();
     }
   }
 
