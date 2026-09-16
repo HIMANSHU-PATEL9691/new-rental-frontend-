@@ -89,6 +89,8 @@ export interface Rental {
   remark: string;
   remarkCompleted?: boolean;
   remarkConfirmedBy?: string;
+  fittingCompleted?: boolean;
+  fittingCompletedBy?: string;
   adminReconfirmed?: boolean;
   adminReconfirmedBy?: string;
   adminReconfirmedAt?: string;
@@ -112,8 +114,10 @@ export interface User {
   name: string;
   email?: string;
   phone?: string;
-  role: 'admin' | 'employee';
-  status?: 'active' | 'pending';
+  password?: string;
+  rawPassword?: string;
+  role: 'admin' | 'employee' | 'reception';
+  status?: 'active' | 'pending' | 'disabled';
   branch?: string;
 }
 
@@ -297,9 +301,11 @@ export const authApi = {
     apiRequest<User>(`${API_BASE}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
   signup: (data: { name: string; phone: string; password: string; role: 'employee' | 'reception'; status: 'pending'; branch?: string }) =>
     apiRequest<User>(`${API_BASE}/auth/signup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }),
-  getUsers: () => apiRequest<User[]>(`${API_BASE}/auth/users`),
+  getUsers: (branch?: string) => apiRequest<User[]>(`${API_BASE}/auth/users${branch ? `?branch=${encodeURIComponent(branch)}` : ''}`),
   updateUserStatus: (identifier: string, status: 'active' | 'pending') =>
     apiRequest<{ message: string; user: User }>(`${API_BASE}/auth/users/${encodeURIComponent(identifier)}/status`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) }),
+  updateUserPassword: (identifier: string, password: string) =>
+    apiRequest<{ message: string; user: User }>(`${API_BASE}/auth/users/${encodeURIComponent(identifier)}/password`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) }),
   deleteUser: (identifier: string) =>
     apiRequest<{ message: string }>(`${API_BASE}/auth/users/${encodeURIComponent(identifier)}`, { method: 'DELETE' }),
 };

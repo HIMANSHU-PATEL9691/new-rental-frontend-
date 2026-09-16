@@ -5,8 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { CheckCircle, XCircle, Trash2, Users, AlertCircle } from "lucide-react";
+import { CheckCircle, XCircle, Trash2, Users, AlertCircle, Eye, EyeOff, Key, Building2, Phone, Pencil } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { authApi } from "@/lib/api";
+
+import { useStore } from "@/data/store";
 
 interface User {
   _id: string;
@@ -15,10 +18,90 @@ interface User {
   email?: string;
   role: string;
   status: string;
+  branch?: string;
+  rawPassword?: string;
+  password?: string;
   createdAt: string;
 }
 
+function StaffPasswordCell({ user, onUpdated }: { user: User; onUpdated?: () => void }) {
+  const [show, setShow] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const pwd = user.rawPassword || user.password;
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword.trim()) {
+      toast.error("Password cannot be empty");
+      return;
+    }
+    try {
+      setLoading(true);
+      const identifier = user.phone || user.email || user._id;
+      await authApi.updateUserPassword(identifier, newPassword.trim());
+      toast.success(`Password updated for ${user.name}!`);
+      setIsEditing(false);
+      setNewPassword("");
+      if (onUpdated) onUpdated();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update password");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <form onSubmit={handleSave} className="inline-flex items-center gap-1">
+        <Input
+          type="text"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          placeholder="New password"
+          className="h-7 text-xs w-28 px-2 border-gold/50 bg-background font-mono"
+          autoFocus
+        />
+        <Button size="sm" type="submit" disabled={loading} className="h-7 px-2 text-[11px] bg-amber-600 hover:bg-amber-700 text-white">
+          Save
+        </Button>
+        <Button size="sm" type="button" variant="ghost" onClick={() => { setIsEditing(false); setNewPassword(""); }} className="h-7 px-1.5 text-[11px]">
+          Cancel
+        </Button>
+      </form>
+    );
+  }
+
+  return (
+    <div className="inline-flex items-center gap-1.5 font-mono text-xs bg-slate-100 text-slate-800 px-2 py-1 rounded border border-slate-200">
+      <Key className="w-3 h-3 text-amber-600 shrink-0" />
+      <span className="font-semibold">{show ? (pwd || "(Not set)") : (pwd ? "••••••••" : "Not Set")}</span>
+      
+      <button
+        type="button"
+        onClick={() => setShow(!show)}
+        className="ml-1 text-slate-500 hover:text-slate-800 p-0.5"
+        title={show ? "Hide Password" : "Show Password"}
+      >
+        {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+      </button>
+
+      <button
+        type="button"
+        onClick={() => { setIsEditing(true); setNewPassword(pwd || ""); }}
+        className="text-amber-700 hover:text-amber-900 ml-1 p-0.5 hover:bg-amber-100 rounded"
+        title="Change Password"
+      >
+        <Pencil className="w-3 h-3" />
+      </button>
+    </div>
+  );
+}
+
 export default function ApprovalsPage() {
+  const { selectedBranch } = useStore();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState("");
@@ -34,12 +117,12 @@ export default function ApprovalsPage() {
     }
 
     fetchUsers();
-  }, []);
+  }, [selectedBranch]);
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const data = await authApi.getUsers();
+      const data = await authApi.getUsers(selectedBranch);
       setUsers(data as any);
     } catch (err: any) {
       toast.error(err.message || "Failed to fetch users");
@@ -144,12 +227,23 @@ export default function ApprovalsPage() {
                           <Badge className={`${getRoleBadgeColor(user.role)} border`}>
                             {getRoleLabel(user.role)}
                           </Badge>
+                          <Badge variant="outline" className="text-xs border-amber-300 bg-amber-50 text-amber-800 flex items-center gap-1">
+                            <Building2 className="w-3 h-3 text-amber-600" />
+                            {user.branch || "Shop 1"}
+                          </Badge>
                           <span className="text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-1 rounded border border-amber-200">PENDING</span>
                         </div>
-                        <p className="text-sm text-muted-foreground">{user.phone}</p>
-                        {user.email && (
-                          <p className="text-sm text-muted-foreground truncate">{user.email}</p>
-                        )}
+                        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground mt-1.5">
+                          <div className="flex items-center gap-1 font-mono text-slate-700 bg-slate-100 px-2 py-1 rounded border border-slate-200">
+                            <Phone className="w-3 h-3 text-slate-500" />
+                            <span>ID: <strong>{user.phone}</strong></span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-slate-500">Pass:</span>
+                            <StaffPasswordCell user={user} onUpdated={fetchUsers} />
+                          </div>
+                          {user.email && <span>{user.email}</span>}
+                        </div>
                       </div>
                       <div className="flex gap-2 shrink-0">
                         <Button
@@ -202,12 +296,23 @@ export default function ApprovalsPage() {
                           <Badge className={`${getRoleBadgeColor(user.role)} border`}>
                             {getRoleLabel(user.role)}
                           </Badge>
+                          <Badge variant="outline" className="text-xs border-amber-300 bg-amber-50 text-amber-800 flex items-center gap-1">
+                            <Building2 className="w-3 h-3 text-amber-600" />
+                            {user.branch || "Shop 1"}
+                          </Badge>
                           <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-1 rounded border border-green-200">ACTIVE</span>
                         </div>
-                        <p className="text-sm text-muted-foreground">{user.phone}</p>
-                        {user.email && (
-                          <p className="text-sm text-muted-foreground truncate">{user.email}</p>
-                        )}
+                        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground mt-1.5">
+                          <div className="flex items-center gap-1 font-mono text-slate-700 bg-slate-100 px-2 py-1 rounded border border-slate-200">
+                            <Phone className="w-3 h-3 text-slate-500" />
+                            <span>ID: <strong>{user.phone}</strong></span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-slate-500">Pass:</span>
+                            <StaffPasswordCell user={user} onUpdated={fetchUsers} />
+                          </div>
+                          {user.email && <span>{user.email}</span>}
+                        </div>
                       </div>
                       <Button
                         size="sm"
@@ -247,12 +352,23 @@ export default function ApprovalsPage() {
                           <Badge className={`${getRoleBadgeColor(user.role)} border`}>
                             {getRoleLabel(user.role)}
                           </Badge>
+                          <Badge variant="outline" className="text-xs border-amber-300 bg-amber-50 text-amber-800 flex items-center gap-1">
+                            <Building2 className="w-3 h-3 text-amber-600" />
+                            {user.branch || "Shop 1"}
+                          </Badge>
                           <span className="text-xs font-semibold text-red-700 bg-red-100 px-2 py-1 rounded border border-red-200">REJECTED</span>
                         </div>
-                        <p className="text-sm text-muted-foreground">{user.phone}</p>
-                        {user.email && (
-                          <p className="text-sm text-muted-foreground truncate">{user.email}</p>
-                        )}
+                        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground mt-1.5">
+                          <div className="flex items-center gap-1 font-mono text-slate-700 bg-slate-100 px-2 py-1 rounded border border-slate-200">
+                            <Phone className="w-3 h-3 text-slate-500" />
+                            <span>ID: <strong>{user.phone}</strong></span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-slate-500">Pass:</span>
+                            <StaffPasswordCell user={user} />
+                          </div>
+                          {user.email && <span>{user.email}</span>}
+                        </div>
                       </div>
                       <Button
                         size="sm"

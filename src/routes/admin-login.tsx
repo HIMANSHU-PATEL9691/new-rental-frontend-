@@ -10,7 +10,6 @@ import {
   Eye,
   EyeOff,
   ShieldCheck,
-  Sparkles,
   ArrowRight,
 } from "lucide-react";
 import brandLogo from "@/assets/logo.png";
@@ -26,25 +25,11 @@ const useNavigate = () => {
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
-  const [username, setUsername] = useState("Sajansagar2516");
-  const [password, setPassword] = useState("Shilpa2516");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [branch, setBranch] = useState("Shop 1");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-
-  const fillShop1Credentials = () => {
-    setBranch("Shop 1");
-    setUsername("Sajansagar2516");
-    setPassword("Shilpa2516");
-    toast.info("Selected Shop 1 Admin Credentials");
-  };
-
-  const fillShop2Credentials = () => {
-    setBranch("Shop 2");
-    setUsername("Shop2Admin");
-    setPassword("Shop2Password");
-    toast.info("Selected Shop 2 Admin Credentials");
-  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,34 +39,35 @@ export default function AdminLoginPage() {
       const trimmedUser = username.trim();
       const trimmedPass = password.trim();
 
-      // Check credentials for Shop 1 Admin
+      // Check credentials for Shop 1 Admin (ID: Sajansagar2516, Pass: Shilpa2516)
       const isShop1Admin =
         (trimmedUser === "Sajansagar2516" || trimmedUser.toLowerCase() === "shop1admin" || trimmedUser.toLowerCase() === "shop1") &&
         (trimmedPass === "Shilpa2516" || trimmedPass === "Shop1Password");
 
-      // Check credentials for Shop 2 Admin
+      // Check credentials for Shop 2 Admin (ID: Shop2Admin, Pass: Shilpa2516 - same as Shop 1)
       const isShop2Admin =
         (trimmedUser.toLowerCase() === "shop2admin" || trimmedUser.toLowerCase() === "shop2" || trimmedUser === "SajansagarShop2") &&
-        (trimmedPass === "Shop2Password" || trimmedPass === "ShilpaShop2" || trimmedPass === "Shop2@2026");
+        (trimmedPass === "Shilpa2516" || trimmedPass === "Shop1Password" || trimmedPass === "Shop2Password" || trimmedPass === "ShilpaShop2" || trimmedPass === "Shop2@2026");
 
       if (isShop1Admin || isShop2Admin) {
-        const activeBranch = isShop2Admin ? "Shop 2" : "Shop 1";
+        const activeBranch = branch || (isShop2Admin ? "Shop 2" : "Shop 1");
         localStorage.setItem("user_role", "admin");
         localStorage.setItem("user_name", `Admin (${activeBranch})`);
         localStorage.setItem("selected_branch", activeBranch);
         localStorage.setItem("user_branch", activeBranch);
         toast.success(`Welcome back! Logged in as Admin for ${activeBranch}`);
         window.location.href = "/";
-      } else if (trimmedUser === "Sajansagar2516" && trimmedPass === "Shilpa2516") {
+      } else if ((trimmedUser === "Sajansagar2516" || trimmedUser.toLowerCase() === "shop2admin") && trimmedPass === "Shilpa2516") {
+        const activeBranch = branch || (trimmedUser.toLowerCase() === "shop2admin" ? "Shop 2" : "Shop 1");
         localStorage.setItem("user_role", "admin");
-        localStorage.setItem("user_name", `Admin (${branch})`);
-        localStorage.setItem("selected_branch", branch);
-        localStorage.setItem("user_branch", branch);
-        toast.success(`Welcome back! Logged in as Admin for ${branch}`);
+        localStorage.setItem("user_name", `Admin (${activeBranch})`);
+        localStorage.setItem("selected_branch", activeBranch);
+        localStorage.setItem("user_branch", activeBranch);
+        toast.success(`Welcome back! Logged in as Admin for ${activeBranch}`);
         window.location.href = "/";
       } else {
         setIsLoading(false);
-        toast.error("Invalid admin credentials. Please select Shop 1 or Shop 2 credentials below.");
+        toast.error("Invalid admin credentials. Please enter correct Admin ID and Password.");
       }
     }, 250);
   };
@@ -137,7 +123,7 @@ export default function AdminLoginPage() {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={fillShop1Credentials}
+                  onClick={() => setBranch("Shop 1")}
                   className={`py-3 px-4 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${
                     branch === "Shop 1"
                       ? "bg-amber-500/10 border-amber-500/60 text-amber-800 shadow-sm"
@@ -151,7 +137,7 @@ export default function AdminLoginPage() {
 
                 <button
                   type="button"
-                  onClick={fillShop2Credentials}
+                  onClick={() => setBranch("Shop 2")}
                   className={`py-3 px-4 rounded-xl text-xs font-bold border transition-all flex items-center justify-center gap-2 ${
                     branch === "Shop 2"
                       ? "bg-amber-500/10 border-amber-500/60 text-amber-800 shadow-sm"
@@ -175,7 +161,7 @@ export default function AdminLoginPage() {
                 <Input
                   id="username"
                   type="text"
-                  placeholder="Enter admin ID (e.g. Sajansagar2516)"
+                  placeholder="Enter admin ID"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="pl-10 h-11 border-slate-200 bg-white focus:border-amber-500 focus:ring-amber-500/20 text-slate-900 font-medium"
@@ -228,32 +214,6 @@ export default function AdminLoginPage() {
               )}
             </Button>
           </form>
-
-          {/* Quick Credential Selector Pills */}
-          <div className="pt-4 border-t border-slate-100">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-amber-500" /> Quick Admin Login Presets:
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={fillShop1Credentials}
-                className="p-2.5 rounded-lg border border-amber-200/80 bg-amber-50/50 hover:bg-amber-100/80 text-left transition-colors"
-              >
-                <div className="text-xs font-bold text-amber-900">Shop 1 Owner</div>
-                <div className="text-[11px] text-amber-700 font-mono">ID: Sajansagar2516</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={fillShop2Credentials}
-                className="p-2.5 rounded-lg border border-amber-200/80 bg-amber-50/50 hover:bg-amber-100/80 text-left transition-colors"
-              >
-                <div className="text-xs font-bold text-amber-900">Shop 2 Owner</div>
-                <div className="text-[11px] text-amber-700 font-mono">ID: Shop2Admin</div>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Footer */}

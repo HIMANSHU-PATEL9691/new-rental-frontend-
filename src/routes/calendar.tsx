@@ -205,6 +205,27 @@ export default function CalendarPage() {
       });
   };
 
+  const handleMarkFitting = (rentalId: string, currentName: string) => {
+    console.info("[calendar] mark fitting prompt opened", { rentalId, currentName });
+    const name = window.prompt("Enter your name to confirm fitting is complete:", currentName);
+    const trimmedName = name?.trim();
+
+    if (!trimmedName) {
+      console.info("[calendar] mark fitting cancelled", { rentalId });
+      return;
+    }
+
+    updateRental(rentalId, { fittingCompleted: true, fittingCompletedBy: trimmedName } as any)
+      .then((updatedRental) => {
+        console.info("[calendar] mark fitting request succeeded", { rentalId, updatedRental });
+        toast.success("Marked fitting complete");
+      })
+      .catch((error) => {
+        console.error("[calendar] mark fitting failed", { rentalId, error });
+        toast.error("Failed to update");
+      });
+  };
+
   const handleMarkDryclean = (rentalId: string, currentName: string) => {
     console.info("[calendar] mark dryclean prompt opened", { rentalId, currentName });
     const name = window.prompt("Enter your name to confirm dryclean is complete:", currentName);
@@ -562,7 +583,35 @@ export default function CalendarPage() {
               <Download className="w-4 h-4" /> Export to Excel
             </Button>
           </DialogHeader>
-          <div className="overflow-x-auto rounded-md border border-border mt-4">
+          {/* Mobile Card List View (sm:hidden) - No horizontal scrollbar needed */}
+          <div className="divide-y divide-border sm:hidden mt-4 rounded-md border border-border bg-card">
+            {selectedEvents.map((e) => {
+              const item = getItem(e.itemId);
+              const customer = getCustomer(e.customerId);
+              return (
+                <div key={e.id} className="p-3.5 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs font-bold text-amber-800 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                      Bill #{e.billNo || e.id}
+                    </span>
+                    <StatusBadge status={e.status} kind="rental" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-bold text-foreground">{customer?.name || "Unknown Client"}</p>
+                    <p className="text-[11px] text-muted-foreground">{customer?.phone || "No phone"}</p>
+                  </div>
+                  <div className="bg-secondary/30 p-2.5 rounded-md space-y-1 text-xs">
+                    <p className="font-medium text-foreground">{item?.name || "Unknown Piece"}</p>
+                    <p className="text-[10px] text-muted-foreground font-mono">ID: {e.itemNo || e.itemId} • Size {item?.size || "-"} • Color {item?.color || "-"}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">Delivery: <span className="font-semibold text-emerald-600">{formatDate(e.deliveryDate || e.startDate)}</span></p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden sm:block overflow-x-auto rounded-md border border-border mt-4">
             <Table className="text-sm">
               <TableHeader className="bg-secondary/40">
                 <TableRow>
@@ -583,6 +632,7 @@ export default function CalendarPage() {
                   const daysToDelivery = Math.round((new Date(deliveryStr).getTime() - new Date(todayStr).getTime()) / 86400000);
                   const needsAttention = e.status !== "returned" && !!e.remark && !(e as any).remarkCompleted && daysToDelivery <= 5;
                   const isEmployeeReady = Boolean((e as any).remarkCompleted);
+                  const isFittingDone = Boolean((e as any).fittingCompleted);
                   const isAdminReconfirmed = Boolean((e as any).adminReconfirmed);
                   const isDrycleanDone = Boolean((e as any).drycleanCompleted);
                   const isDrycleanAdminConfirmed = Boolean((e as any).drycleanAdminConfirmed);
@@ -627,6 +677,24 @@ export default function CalendarPage() {
                                 }}
                               >
                                 Mark Dryclean Done
+                              </Button>
+                            )}
+
+                            {isFittingDone ? (
+                              <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20 font-medium tracking-wide text-[9px]">
+                                Fitting: {(e as any).fittingCompletedBy}
+                              </Badge>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-[10px] uppercase tracking-wider text-purple-700 border-purple-500/40 hover:bg-purple-500/10"
+                                onClick={() => {
+                                  const currentName = localStorage.getItem("user_name") || "";
+                                  handleMarkFitting(e.id, currentName);
+                                }}
+                              >
+                                Mark Fitting Done
                               </Button>
                             )}
 

@@ -94,8 +94,9 @@ function DashboardPage() {
     const isToday = rDateStr === todayStr;
     const isThisMonth = rDateObj.getMonth() === currentMonth && rDateObj.getFullYear() === currentYear;
 
-    const income = r.advance || 0;
-    const due = Math.max(0, (r.total || 0) + (r.penalty || 0) - (r.advance || 0));
+    const rentBill = Math.max(0, (Number(r.total) || 0) + (Number(r.penalty) || 0) - (Number(r.discount) || 0));
+    const income = Math.min(rentBill, Math.max(0, Number(r.advance) || 0));
+    const due = Math.max(0, (r.total || 0) + (r.securityAmount || 0) + (r.penalty || 0) - (r.discount || 0) - (r.advance || 0));
 
     if (isToday) {
       todayIncome += income;
@@ -126,7 +127,7 @@ function DashboardPage() {
     {
       label: "Monthly Income",
       value: formatCurrencyINR(monthIncome),
-      helper: "Collected this month",
+      helper: "Collected this month (excl. security)",
       icon: Banknote,
     },
     {
@@ -172,7 +173,9 @@ function DashboardPage() {
       if (date.getMonth() !== currentMonth || date.getFullYear() !== currentYear) return;
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
       grouped[key] = grouped[key] || { date, revenue: 0 };
-        grouped[key].revenue += rental.advance ?? 0;
+      const rentBill = Math.max(0, (Number(rental.total) || 0) + (Number(rental.penalty) || 0) - (Number(rental.discount) || 0));
+      const rentIncome = Math.min(rentBill, Math.max(0, Number(rental.advance) || 0));
+      grouped[key].revenue += rentIncome;
     });
     return Object.values(grouped)
       .sort((a, b) => a.date.getTime() - b.date.getTime())

@@ -3,7 +3,7 @@ import { useStore } from "@/data/store";
 import { formatCurrencyINR } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Package, CheckCircle, Calendar, ArrowDownLeft, Search } from "lucide-react";
+import { Package, CheckCircle, Calendar, ArrowDownLeft, Search, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ViewInvoiceDialog } from "@/components/forms/ViewInvoiceDialog";
@@ -138,6 +138,141 @@ export function DeliveriesPage() {
     }
   };
 
+  const handleDeliver = (rental: any) => {
+    const isItemReadyPending = !(rental as any).remarkCompleted;
+    const isFittingPending = !(rental as any).fittingCompleted;
+    const isDrycleanPending = !(rental as any).drycleanCompleted;
+
+    if (isItemReadyPending || isFittingPending || isDrycleanPending) {
+      const pendingTasks = [];
+      if (isItemReadyPending) pendingTasks.push("Item Readiness");
+      if (isFittingPending) pendingTasks.push("Fitting");
+      if (isDrycleanPending) pendingTasks.push("Dryclean");
+      
+      const errMsg = `Delivery Blocked!\nThe following checks are still PENDING:\n• ${pendingTasks.join("\n• ")}\n\nDelivery cannot be processed until all checks are marked READY.`;
+      toast.error(`Cannot deliver! Pending: ${pendingTasks.join(", ")}`);
+      alert(errMsg);
+      return;
+    }
+
+    const relatedRentals = rental.billNo ? rentals.filter((r) => r.billNo === rental.billNo) : [rental];
+    let aggRent = 0;
+    let aggSecurity = 0;
+    let aggAdvance = 0;
+    for (const r of relatedRentals) {
+      aggRent += (Number(r.total) || 0) + (Number(r.penalty) || 0) - (Number(r.discount) || 0);
+      aggSecurity += Number(r.securityAmount) || 0;
+      aggAdvance += Number(r.advance) || 0;
+    }
+    const totalBill = aggRent + aggSecurity;
+    const balance = Math.max(0, totalBill - aggAdvance);
+
+    let msg = `Are you sure you want to mark this product as delivered?\n\n`;
+    msg += `Payment Summary:\n`;
+    msg += `• Total Rent: ${formatCurrencyINR(aggRent)}\n`;
+    if (aggSecurity > 0) msg += `• Security Deposit: ${formatCurrencyINR(aggSecurity)}\n`;
+    msg += `• Total Bill: ${formatCurrencyINR(totalBill)}\n`;
+    msg += `• Amount Paid: ${formatCurrencyINR(aggAdvance)}\n`;
+    msg += `• Balance Due: ${formatCurrencyINR(balance)}\n\n`;
+
+    if (balance > 0) {
+      msg += `Pending Balance to collect: ${formatCurrencyINR(balance)}\n\n`;
+    }
+    msg += `Click OK to confirm delivery and collect any remaining balance.`;
+
+    const confirmed = window.confirm(msg);
+    if (confirmed) {
+      const updates: any = {};
+      if (balance > 0) {
+        updates.advance = (rental.advance || 0) + balance;
+      }
+      handleStatusUpdate({ ...rental, ...updates }, "active", "Product marked as delivered (Active)!");
+    }
+  };
+
+  const handleReturn = (rental: any) => {
+    const relatedRentals = rental.billNo ? rentals.filter((r) => r.billNo === rental.billNo) : [rental];
+    let aggRent = 0;
+    let aggSecurity = 0;
+    let aggAdvance = 0;
+    for (const r of relatedRentals) {
+      aggRent += (Number(r.total) || 0) + (Number(r.penalty) || 0) - (Number(r.discount) || 0);
+      aggSecurity += Number(r.securityAmount) || 0;
+      aggAdvance += Number(r.advance) || 0;
+    }
+    const totalBill = aggRent + aggSecurity;
+    const balance = Math.max(0, totalBill - aggAdvance);
+    const securityToRefund = (rental.securityAmount || 0) > 0 && !(rental as any).securityReturned ? rental.securityAmount : 0;
+    
+    let msg = `Are you sure you want to mark this product as returned?\n\n`;
+    msg += `Payment Summary:\n`;
+    msg += `• Total Rent: ${formatCurrencyINR(aggRent)}\n`;
+    if (aggSecurity > 0) msg += `• Security Deposit: ${formatCurrencyINR(aggSecurity)}\n`;
+    msg += `• Total Bill: ${formatCurrencyINR(totalBill)}\n`;
+    msg += `• Amount Paid: ${formatCurrencyINR(aggAdvance)}\n`;
+    msg += `• Balance Due: ${formatCurrencyINR(balance)}\n`;
+    
+    if (balance > 0) {
+      msg += `\nPending Balance to collect: ${formatCurrencyINR(balance)}`;
+    }
+    if (securityToRefund > 0) {
+      msg += `\nSecurity Deposit to refund: ${formatCurrencyINR(securityToRefund)}`;
+    }
+    msg += `\n\nAre all dues (balance & security) clear? Clicking OK will update and clear the amounts.`;
+
+    const confirmed = window.confirm(msg);
+    if (confirmed) {
+      const updates: any = {};
+      if (balance > 0) {
+        updates.advance = (rental.advance || 0) + balance;
+      }
+      if (securityToRefund > 0) {
+        updates.securityReturned = true;
+        updates.securityReturnedAt = new Date().toISOString();
+      }
+      handleStatusUpdate({ ...rental, ...updates }, "returned", "Product marked as returned!");
+    }
+  };
+
+  const renderActionButtons = (rental: any) => {
+    const isItemReadyPending = !(rental as any).remarkCompleted;
+    const isFittingPending = !(rental as any).fittingCompleted;
+    const isDrycleanPending = !(rental as any).drycleanCompleted;
+    const isNotReady = isItemReadyPending || isFittingPending || isDrycleanPending;
+
+    return (
+      <div className="flex items-center justify-end gap-2">
+        <ViewInvoiceDialog rental={rental} />
+        {canUpdateDeliveries && rental.status === "upcoming" && (
+          <Button
+            size="sm"
+            disabled={updating === rental.id}
+            onClick={() => handleDeliver(rental)}
+            className={isNotReady ? "bg-orange-500 hover:bg-orange-600 text-white gap-1 text-xs h-8 px-2.5" : "bg-emerald-500 hover:bg-emerald-600 text-white gap-1 text-xs h-8 px-2.5"}
+          >
+            <CheckCircle className="w-3.5 h-3.5" />
+            {updating === rental.id ? "Activating..." : isNotReady ? "Not Ready" : "Deliver"}
+          </Button>
+        )}
+      {canUpdateDeliveries && (rental.status === "active" || rental.status === "overdue") && (
+        <Button
+          size="sm"
+          disabled={updating === rental.id}
+          onClick={() => handleReturn(rental)}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1 text-xs h-8 px-2.5"
+        >
+          <Clock className="w-3.5 h-3.5" /> Return
+        </Button>
+      )}
+      {canUpdateDeliveries && rental.status === "returned" && (
+        <Button size="sm" variant="outline" disabled className="text-xs h-8 px-2.5">
+          Returned
+        </Button>
+      )}
+    </div>
+    );
+  };
+
   return (
     <div className="p-0 sm:p-2 max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -194,9 +329,74 @@ export function DeliveriesPage() {
       </div>
 
       <div className="rounded-md border border-border bg-card overflow-hidden">
-        <div className="w-full overflow-x-auto">
-<table className="w-full min-w-200 caption-bottom text-sm">
+        {/* Mobile View: Cards (No horizontal scrollbar required) */}
+        <div className="divide-y divide-border sm:hidden">
+          {deliveriesList.length === 0 ? (
+            <div className="p-6 text-center text-xs text-muted-foreground">
+              No deliveries scheduled for this date.
+            </div>
+          ) : (
+            deliveriesList.map((rental) => {
+              const dueAmount = getDueAmount(rental, rentals);
+              return (
+                <div key={rental.id} className="p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs font-bold text-amber-800 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                      Bill #{rental.billNo || rental.id}
+                    </span>
+                    <StatusBadge status={rental.status} kind="rental" />
+                  </div>
 
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-bold text-foreground">{rental.customer?.name || "Unknown Client"}</p>
+                    <p className="text-[11px] text-muted-foreground">{rental.customer?.phone || "No phone"}</p>
+                  </div>
+
+                  <div className="bg-secondary/30 p-2.5 rounded-md space-y-1.5 text-xs">
+                    <p className="font-medium text-foreground">{rental.item?.name || "Unknown Piece"}</p>
+                    <p className="text-[10px] text-muted-foreground font-mono">ID: {rental.itemNo || rental.itemId}</p>
+                    
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {(rental as any).remarkCompleted ? (
+                        <span className="inline-block text-[9px] font-medium text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">Item Ready</span>
+                      ) : (
+                        <span className="inline-block text-[9px] font-medium text-orange-600 bg-orange-500/10 border border-orange-500/20 px-1.5 py-0.5 rounded">Item Pending</span>
+                      )}
+                      {(rental as any).fittingCompleted ? (
+                        <span className="inline-block text-[9px] font-medium text-purple-600 bg-purple-500/10 border border-purple-500/20 px-1.5 py-0.5 rounded">Fitting Ready</span>
+                      ) : (
+                        <span className="inline-block text-[9px] font-medium text-orange-600 bg-orange-500/10 border border-orange-500/20 px-1.5 py-0.5 rounded">Fitting Pending</span>
+                      )}
+                      {(rental as any).drycleanCompleted ? (
+                        <span className="inline-block text-[9px] font-medium text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">Dryclean Ready</span>
+                      ) : (
+                        <span className="inline-block text-[9px] font-medium text-orange-600 bg-orange-500/10 border border-orange-500/20 px-1.5 py-0.5 rounded">Dryclean Pending</span>
+                      )}
+                    </div>
+
+                    <div className="pt-1 text-[11px] text-muted-foreground">
+                      Del: <span className="font-semibold text-foreground">{formatDate(rental.deliveryDate || rental.startDate)}</span> | Ret: <span className="font-semibold text-foreground">{formatDate(rental.endDate)}</span>
+                    </div>
+                  </div>
+
+                  {canSeeFinancials && dueAmount > 0 && (
+                    <div className="text-xs font-semibold text-destructive">
+                      Due: {formatCurrencyINR(dueAmount)}
+                    </div>
+                  )}
+
+                  <div className="pt-2 border-t border-border">
+                    {renderActionButtons(rental)}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop View: Table */}
+        <div className="hidden sm:block w-full overflow-x-auto">
+          <table className="w-full caption-bottom text-sm">
             <thead className="[&_tr]:border-b bg-secondary/40">
               <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
                 <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Order Info</th>
@@ -215,188 +415,69 @@ export function DeliveriesPage() {
                   </td>
                 </tr>
               ) : (
-            deliveriesList.map((rental) => {
-              const dueAmount = getDueAmount(rental, rentals);
-              return (
-                  <tr key={rental.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                    <td className="p-4 align-middle font-medium">
-                      <div>{rental.billNo || rental.id}</div>
-                      {canSeeFinancials && (
-                        <div className="mt-1.5 flex flex-col gap-0.5">
-                      <div className={`text-xs ${rental.status !== 'active' && dueAmount > 0 ? "text-destructive font-medium" : "text-muted-foreground font-normal"}`}>
-                        Due: {formatCurrencyINR(rental.status === 'active' ? 0 : dueAmount)}
-                          </div>
-                      {(rental.securityAmount || 0) > 0 && !(rental as any).securityReturned && (
-                            <div className="text-xs font-medium text-amber-600">
-                          Refund Security: {formatCurrencyINR(rental.securityAmount || 0)}
+                deliveriesList.map((rental) => {
+                  const dueAmount = getDueAmount(rental, rentals);
+                  return (
+                    <tr key={rental.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                      <td className="p-4 align-middle font-medium">
+                        <div>{rental.billNo || rental.id}</div>
+                        {canSeeFinancials && (
+                          <div className="mt-1.5 flex flex-col gap-0.5">
+                            <div className={`text-xs ${rental.status !== 'active' && dueAmount > 0 ? "text-destructive font-medium" : "text-muted-foreground font-normal"}`}>
+                              Due: {formatCurrencyINR(rental.status === 'active' ? 0 : dueAmount)}
                             </div>
+                            {(rental.securityAmount || 0) > 0 && !(rental as any).securityReturned && (
+                              <div className="text-xs font-medium text-amber-600">
+                                Refund Security: {formatCurrencyINR(rental.securityAmount || 0)}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-4 align-middle">
+                        <div className="font-semibold">{rental.customer?.name || "Unknown"}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{rental.customer?.phone}</div>
+                      </td>
+                      <td className="p-4 align-middle">
+                        <div className="font-medium text-foreground line-clamp-1">{rental.item?.name || "Unknown"}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{rental.itemNo || rental.itemId}</div>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {(rental as any).remarkCompleted ? (
+                            <span className="inline-block text-[9px] font-medium tracking-wide text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">Item Ready</span>
+                          ) : (
+                            <span className="inline-block text-[9px] font-medium tracking-wide text-orange-600 bg-orange-500/10 border border-orange-500/20 px-1.5 py-0.5 rounded">Item Pending</span>
+                          )}
+                          {(rental as any).fittingCompleted ? (
+                            <span className="inline-block text-[9px] font-medium tracking-wide text-purple-600 bg-purple-500/10 border border-purple-500/20 px-1.5 py-0.5 rounded">Fitting Ready</span>
+                          ) : (
+                            <span className="inline-block text-[9px] font-medium tracking-wide text-orange-600 bg-orange-500/10 border border-orange-500/20 px-1.5 py-0.5 rounded">Fitting Pending</span>
+                          )}
+                          {(rental as any).drycleanCompleted ? (
+                            <span className="inline-block text-[9px] font-medium tracking-wide text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">Dryclean Ready</span>
+                          ) : (
+                            <span className="inline-block text-[9px] font-medium tracking-wide text-orange-600 bg-orange-500/10 border border-orange-500/20 px-1.5 py-0.5 rounded">Dryclean Pending</span>
                           )}
                         </div>
-                      )}
-                    </td>
-                    <td className="p-4 align-middle">
-                      <div className="font-semibold">{rental.customer?.name || "Unknown"}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">{rental.customer?.phone}</div>
-                    </td>
-                    <td className="p-4 align-middle">
-                      <div className="font-medium text-foreground line-clamp-1">{rental.item?.name || "Unknown"}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5">{rental.itemNo || rental.itemId}</div>
-                      <div className="mt-1 flex flex-wrap gap-1">
-                        {(rental as any).remarkCompleted ? (
-                          <span className="inline-block text-[9px] font-medium tracking-wide text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">Fitting Ready</span>
+                      </td>
+                      <td className="p-4 align-middle">
+                        <div className="whitespace-nowrap">Del: {formatDate(rental.deliveryDate || rental.startDate)}</div>
+                        {rental.status === "returned" ? (
+                          <div className="text-xs text-emerald-500 font-medium whitespace-nowrap mt-0.5">
+                            Returned: {formatDate(((rental as any).returnedAt || (rental as any).updatedAt || rental.endDate).slice(0, 10))}
+                          </div>
                         ) : (
-                          <span className="inline-block text-[9px] font-medium tracking-wide text-orange-600 bg-orange-500/10 border border-orange-500/20 px-1.5 py-0.5 rounded">Fitting Pending</span>
+                          <div className="text-xs text-muted-foreground whitespace-nowrap mt-0.5">Ret: {formatDate(rental.endDate)}</div>
                         )}
-                        {(rental as any).drycleanCompleted ? (
-                          <span className="inline-block text-[9px] font-medium tracking-wide text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded">Dryclean Ready</span>
-                        ) : (
-                          <span className="inline-block text-[9px] font-medium tracking-wide text-orange-600 bg-orange-500/10 border border-orange-500/20 px-1.5 py-0.5 rounded">Dryclean Pending</span>
-                        )}
-                        {(rental as any).adminReconfirmed && (
-                          <span className="inline-block text-[9px] font-medium tracking-wide text-blue-600 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.5 rounded">Admin Rechecked: {(rental as any).adminReconfirmedBy}</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-4 align-middle">
-                      <div className="whitespace-nowrap">Del: {formatDate(rental.deliveryDate || rental.startDate)}</div>
-                      {rental.status === "returned" ? (
-                        <div className="text-xs text-emerald-500 font-medium whitespace-nowrap mt-0.5">
-                          Returned: {formatDate(((rental as any).returnedAt || (rental as any).updatedAt || rental.endDate).slice(0, 10))}
-                        </div>
-                      ) : (
-                        <div className="text-xs text-muted-foreground whitespace-nowrap mt-0.5">Ret: {formatDate(rental.endDate)}</div>
-                      )}
-                    </td>
-                    <td className="p-4 align-middle text-center">
-                      <StatusBadge status={rental.status} kind="rental" />
-                    </td>
-                    <td className="p-4 align-middle text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <ViewInvoiceDialog rental={rental} />
-                        {!canUpdateDeliveries && (
-                          <Button size="sm" variant="outline" disabled>
-                            View Only
-                          </Button>
-                        )}
-                      {canUpdateDeliveries && rental.status === "upcoming" && (
-                        <Button
-                          size="sm"
-                          disabled={updating === rental.id}
-                          onClick={() => {
-                            const isFittingPending = !(rental as any).remarkCompleted;
-                            const isDrycleanPending = !(rental as any).drycleanCompleted;
-
-                            if (isFittingPending || isDrycleanPending) {
-                              const pendingTasks = [];
-                              if (isFittingPending) pendingTasks.push("Fitting");
-                              if (isDrycleanPending) pendingTasks.push("Dryclean");
-                              
-                              window.alert(`Cannot deliver: Item is not ready.\n\nPending: ${pendingTasks.join(" and ")}`);
-                              return;
-                            }
-
-                            const relatedRentals = rental.billNo ? rentals.filter((r) => r.billNo === rental.billNo) : [rental];
-                            let aggRent = 0;
-                            let aggSecurity = 0;
-                            let aggAdvance = 0;
-                            for (const r of relatedRentals) {
-                              aggRent += (Number(r.total) || 0) + (Number(r.penalty) || 0) - (Number(r.discount) || 0);
-                              aggSecurity += Number(r.securityAmount) || 0;
-                              aggAdvance += Number(r.advance) || 0;
-                            }
-                            const totalBill = aggRent + aggSecurity;
-                            const balance = rental.status === "active" ? 0 : Math.max(0, totalBill - aggAdvance);
-                            
-                            let msg = `Are you sure you want to deliver this product?\n\n`;
-                            msg += `Payment Summary:\n`;
-                            msg += `• Total Rent: ${formatCurrencyINR(aggRent)}\n`;
-                            if (aggSecurity > 0) msg += `• Security Deposit: ${formatCurrencyINR(aggSecurity)}\n`;
-                            msg += `• Total Bill: ${formatCurrencyINR(totalBill)}\n`;
-                            msg += `• Amount Paid: ${formatCurrencyINR(aggAdvance)}\n`;
-                            msg += `• Balance Due: ${formatCurrencyINR(balance)}\n`;
-                            
-                            if (balance > 0) {
-                              msg += `\nIs all amount paid? Clicking OK will mark as delivered and clear the balance.`;
-                            }
-                            
-                            const confirmed = window.confirm(msg);
-                            if (confirmed) {
-                              const updates: any = {};
-                              if (balance > 0) {
-                                updates.advance = (rental.advance || 0) + balance;
-                              }
-                              handleStatusUpdate({ ...rental, ...updates }, "active", "Product marked as delivered (Active)!");
-                            }
-                          }}
-                          className={(!(rental as any).remarkCompleted || !(rental as any).drycleanCompleted) ? "bg-orange-500 hover:bg-orange-600 text-white gap-2" : "bg-emerald-500 hover:bg-emerald-600 text-white gap-2"}
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          {updating === rental.id ? "Activating..." : (!(rental as any).remarkCompleted || !(rental as any).drycleanCompleted) ? "Not Ready" : "Deliver"}
-                        </Button>
-                      )}
-                      {canUpdateDeliveries && (rental.status === "active" || rental.status === "overdue") && (
-                        <Button
-                          size="sm"
-                          disabled={updating === rental.id}
-                          onClick={() => {
-                            const relatedRentals = rental.billNo ? rentals.filter((r) => r.billNo === rental.billNo) : [rental];
-                            let aggRent = 0;
-                            let aggSecurity = 0;
-                            let aggAdvance = 0;
-                            for (const r of relatedRentals) {
-                              aggRent += (Number(r.total) || 0) + (Number(r.penalty) || 0) - (Number(r.discount) || 0);
-                              aggSecurity += Number(r.securityAmount) || 0;
-                              aggAdvance += Number(r.advance) || 0;
-                            }
-                            const totalBill = aggRent + aggSecurity;
-                            const balance = Math.max(0, totalBill - aggAdvance);
-                            const securityToRefund = (rental.securityAmount || 0) > 0 && !(rental as any).securityReturned ? rental.securityAmount : 0;
-                            
-                            let msg = `Are you sure you want to mark this product as returned?\n\n`;
-                            msg += `Payment Summary:\n`;
-                            msg += `• Total Rent: ${formatCurrencyINR(aggRent)}\n`;
-                            if (aggSecurity > 0) msg += `• Security Deposit: ${formatCurrencyINR(aggSecurity)}\n`;
-                            msg += `• Total Bill: ${formatCurrencyINR(totalBill)}\n`;
-                            msg += `• Amount Paid: ${formatCurrencyINR(aggAdvance)}\n`;
-                            msg += `• Balance Due: ${formatCurrencyINR(balance)}\n`;
-                            
-                            if (balance > 0) {
-                              msg += `\nPending Balance to collect: ${formatCurrencyINR(balance)}`;
-                            }
-                            if (securityToRefund > 0) {
-                              msg += `\nSecurity Deposit to refund: ${formatCurrencyINR(securityToRefund)}`;
-                            }
-                            msg += `\n\nAre all dues (balance & security) clear? Clicking OK will update and clear the amounts.`;
-
-                            const confirmed = window.confirm(msg);
-                            if (confirmed) {
-                              const updates: any = {};
-                              if (balance > 0) {
-                                updates.advance = (rental.advance || 0) + balance;
-                              }
-                              if (securityToRefund > 0) {
-                                updates.securityReturned = true;
-                                updates.securityReturnedAt = new Date().toISOString();
-                              }
-                              handleStatusUpdate({ ...rental, ...updates }, "returned", "Product marked as returned!");
-                            }
-                          }}
-                          className="bg-blue-500 hover:bg-blue-600 text-white gap-2"
-                        >
-                          <ArrowDownLeft className="w-4 h-4" />
-                          {updating === rental.id ? "Updating..." : "Return"}
-                        </Button>
-                      )}
-                      {canUpdateDeliveries && rental.status === "returned" && (
-                        <Button size="sm" variant="outline" disabled>
-                          Returned
-                        </Button>
-                      )}
-                      </div>
-                    </td>
-                  </tr>
-            );
-            })
+                      </td>
+                      <td className="p-4 align-middle text-center">
+                        <StatusBadge status={rental.status} kind="rental" />
+                      </td>
+                      <td className="p-4 align-middle text-right">
+                        {renderActionButtons(rental)}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

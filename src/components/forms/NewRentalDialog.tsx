@@ -529,6 +529,12 @@ export function NewRentalDialog({
                         if (!confirmed) return;
                       }
                       if (v === "active" && form.status !== "active") {
+                        const unreadyPieces = form.pieces.filter(p => !(p as any).remarkCompleted || !(p as any).fittingCompleted || !(p as any).drycleanCompleted);
+                        if (unreadyPieces.length > 0) {
+                          toast.error("Cannot set new booking status to Active! Save as Upcoming first and complete item checks.");
+                          alert("New bookings cannot be marked as Active directly upon creation.\nPlease save as Upcoming, then complete Item Readiness, Fitting, and Drycleaning checks before delivery.");
+                          return;
+                        }
                         const confirmed = window.confirm("Is all amount paid?");
                         if (confirmed) {
                           setForm({ ...form, status: v, advance: netTotal });

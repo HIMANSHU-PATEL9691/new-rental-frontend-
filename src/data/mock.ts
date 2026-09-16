@@ -56,6 +56,8 @@ export interface Rental {
   remark: string;
   remarkCompleted?: boolean;
   remarkConfirmedBy?: string;
+  fittingCompleted?: boolean;
+  fittingCompletedBy?: string;
   adminReconfirmed?: boolean;
   adminReconfirmedBy?: string;
   adminReconfirmedAt?: string;

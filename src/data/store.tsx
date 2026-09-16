@@ -108,14 +108,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedBranch, setSelectedBranchState] = useState<string>(() => {
     if (typeof window !== "undefined" && window.localStorage) {
-      return window.localStorage.getItem("selected_branch") || "Shop 1";
+      const role = (window.localStorage.getItem("user_role") || "").trim().toLowerCase();
+      const userBranch = window.localStorage.getItem("user_branch");
+      const stored = window.localStorage.getItem("selected_branch");
+      if (role && role !== "admin") {
+        const effective = userBranch || stored || "Shop 1";
+        if (userBranch !== effective) window.localStorage.setItem("user_branch", effective);
+        if (stored !== effective) window.localStorage.setItem("selected_branch", effective);
+        return effective;
+      }
+      return stored || userBranch || "Shop 1";
     }
     return "Shop 1";
   });
 
   const setSelectedBranch = (branch: string) => {
     if (typeof window !== "undefined" && window.localStorage) {
-      window.localStorage.setItem("selected_branch", branch);
+      const role = (window.localStorage.getItem("user_role") || "").trim().toLowerCase();
+      const userBranch = window.localStorage.getItem("user_branch");
+      const effectiveBranch = (role && role !== "admin") ? (userBranch || branch || "Shop 1") : branch;
+      window.localStorage.setItem("selected_branch", effectiveBranch);
+      if (role && role !== "admin") {
+        window.localStorage.setItem("user_branch", effectiveBranch);
+      }
+      setSelectedBranchState(effectiveBranch);
+      return;
     }
     setSelectedBranchState(branch);
   };
@@ -125,14 +142,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshData = async (branchOverride?: string) => {
-    const activeBranch = branchOverride !== undefined ? branchOverride : selectedBranch;
-    console.info("[store] refreshData started for branch:", activeBranch);
+    const role = typeof window !== "undefined" && window.localStorage ? (window.localStorage.getItem("user_role") || "").trim().toLowerCase() : "";
+    const userBranch = typeof window !== "undefined" && window.localStorage ? window.localStorage.getItem("user_branch") : null;
+    const effectiveBranch = (role && role !== "admin" && userBranch) ? userBranch : (branchOverride !== undefined ? branchOverride : selectedBranch);
+
+    console.info("[store] refreshData started for branch:", effectiveBranch);
     try {
       console.info("[store] fetching items, customers, and rentals");
       const [itemsData, customersData, rentalsData] = await Promise.all([
-        itemsApi.getAll(activeBranch),
-        customersApi.getAll(activeBranch),
-        rentalsApi.getAll(activeBranch),
+        itemsApi.getAll(effectiveBranch),
+        customersApi.getAll(effectiveBranch),
+        rentalsApi.getAll(effectiveBranch),
       ]);
       console.info("[store] fetch complete", {
         items: itemsData.length,
@@ -154,10 +174,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const syncBranchFromStorage = () => {
       if (typeof window !== "undefined" && window.localStorage) {
+        const role = (window.localStorage.getItem("user_role") || "").trim().toLowerCase();
+        const userBranch = window.localStorage.getItem("user_branch");
         const stored = window.localStorage.getItem("selected_branch");
-        if (stored && stored !== selectedBranch) {
-          console.info("[store] Syncing selectedBranch from storage:", stored);
-          setSelectedBranchState(stored);
+        const effective = (role && role !== "admin") ? (userBranch || stored || "Shop 1") : (stored || "Shop 1");
+        if (effective !== selectedBranch) {
+          console.info("[store] Syncing selectedBranch from storage:", effective);
+          setSelectedBranchState(effective);
         }
       }
     };

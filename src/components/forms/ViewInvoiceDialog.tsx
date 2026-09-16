@@ -749,14 +749,6 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
 
             <Button
               variant="outline"
-              onClick={handleDownloadPdf}
-              className="border-gold/40 text-foreground hover:bg-gold/10 text-xs font-semibold h-9 px-3 gap-1.5"
-            >
-              <Download className="h-4 w-4" /> PDF
-            </Button>
-
-            <Button
-              variant="outline"
               onClick={handleShareWhatsApp}
               className="border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 text-xs font-semibold h-9 px-3 gap-1.5"
             >

@@ -180,9 +180,68 @@ export function DuesPage() {
       )}
 
       <div className="rounded-md border border-border bg-card overflow-hidden">
-        <div className="w-full overflow-x-auto">
-<table className="w-full min-w-200 caption-bottom text-sm">
+        {/* Mobile View: Cards */}
+        <div className="divide-y divide-border sm:hidden">
+          {duesList.length === 0 ? (
+            <div className="p-6 text-center text-xs text-muted-foreground">
+              No pending dues found. Everyone is cleared!
+            </div>
+          ) : (
+            duesList.map((due) => (
+              <div key={due.id} className="p-4 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-xs font-bold text-amber-800 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                    Bill #{due.billNo || due.id}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                    due.status === 'overdue' ? 'bg-red-500/10 text-red-500' :
+                    due.status === 'active' ? 'bg-blue-500/10 text-blue-500' :
+                    'bg-secondary text-secondary-foreground'
+                  }`}>
+                    {due.status}
+                  </span>
+                </div>
 
+                <div className="space-y-0.5">
+                  <p className="text-xs font-bold text-foreground">{due.customer?.name || "Unknown Client"}</p>
+                  <p className="text-[11px] text-muted-foreground">{due.customer?.phone || "No phone"}</p>
+                </div>
+
+                <div className="bg-secondary/30 p-2.5 rounded-md text-xs space-y-1">
+                  <p className="font-medium text-foreground">{due.item?.name || "Unknown item"}</p>
+                  <div className="flex items-center justify-between pt-1 text-[11px]">
+                    <span className="text-muted-foreground">Total Value: <span className="font-semibold text-gold">{formatCurrencyINR(due.totalWithPenalty)}</span></span>
+                    <span className="text-destructive font-bold">Due: {formatCurrencyINR(due.finalDue)}</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end pt-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!due.customer?.phone}
+                    onClick={() =>
+                      handleWhatsApp(
+                        due.customer!.phone,
+                        due.customer!.name,
+                        due.finalDue,
+                        due.billNo || due.id
+                      )
+                    }
+                    className="gap-1.5 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-8"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    WhatsApp
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop View: Table */}
+        <div className="hidden sm:block w-full overflow-x-auto">
+          <table className="w-full caption-bottom text-sm">
             <thead className="[&_tr]:border-b bg-secondary/40">
               <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
                 <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Bill No</th>

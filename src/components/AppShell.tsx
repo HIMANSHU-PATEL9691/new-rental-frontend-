@@ -260,25 +260,50 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="hairline mx-6 shrink-0" />
           <NavList pathname={pathname} role={role} onNavigate={() => setMobileOpen(false)} />
+
+          {/* User Profile & Logout Section for Mobile Drawer */}
+          <div className="mt-auto border-t border-sidebar-border px-6 py-4 flex items-center justify-between shrink-0 bg-sidebar-accent/50">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Avatar className="h-9 w-9 border border-gold/40 shrink-0">
+                <AvatarFallback className="bg-secondary text-xs text-gold uppercase font-medium">
+                  {userName.slice(0, 2)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 text-xs pr-1">
+                <p className="text-foreground font-semibold truncate">{userName}</p>
+                <p className="truncate text-[11px] text-muted-foreground capitalize">{role} • {selectedBranch}</p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLogout}
+              className="shrink-0 border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 gap-1 px-2.5 h-8 text-xs font-bold"
+              aria-label="Logout"
+            >
+              <LogOut className="h-3.5 w-3.5 text-red-500" />
+              <span>Logout</span>
+            </Button>
+          </div>
         </SheetContent>
       </Sheet>
 
       <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
         <header className="sticky top-0 z-10 min-h-14 border-b border-border bg-background/55 backdrop-blur-xl sm:min-h-16">
 
-          <div className="flex h-14 items-center gap-2 px-4 sm:h-16 sm:gap-4 sm:px-6 lg:px-10">
+          <div className="flex h-14 items-center gap-1.5 px-3 sm:h-16 sm:gap-4 sm:px-6 lg:px-10">
             <Button
               variant="ghost"
               size="icon"
-              className="-ml-2 text-foreground md:hidden"
+              className="-ml-1 text-foreground md:hidden shrink-0"
               onClick={() => setMobileOpen(true)}
               aria-label="Open menu"
             >
               <Menu className="h-5 w-5" />
             </Button>
 
-            <Link to="/" className="font-display text-lg leading-none md:hidden">
-              SAJAN SAGAR COLLECTION
+            <Link to="/" className="font-display text-xs sm:text-base leading-none md:hidden truncate max-w-[110px] xs:max-w-[140px] sm:max-w-none">
+              SAJAN SAGAR
             </Link>
 
             <div className="relative hidden max-w-md flex-1 sm:block">
@@ -291,13 +316,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               />
             </div>
 
-            {/* Active Open Shop Indicator */}
-            <div className="flex items-center gap-1.5 bg-gold/10 border border-gold/30 rounded-md px-3 py-1.5 text-xs font-semibold text-gold shadow-sm">
-              <Building2 className="h-4 w-4 shrink-0" />
-              <span>{selectedBranch || "Shop 1"}</span>
-            </div>
+            {/* Active Shop Display / Selector (Dropdown for Admin, Static Badge for Staff) */}
+            {role === "admin" ? (
+              <Select value={selectedBranch || "Shop 1"} onValueChange={(val) => setSelectedBranch(val)}>
+                <SelectTrigger className="w-24 sm:w-28 h-8 sm:h-9 border-gold/40 bg-gold/10 text-gold font-semibold text-[11px] sm:text-xs rounded-md shadow-sm focus:ring-gold/40 gap-1 px-2 shrink-0">
+                  <Building2 className="h-3.5 w-3.5 shrink-0 text-gold" />
+                  <SelectValue placeholder="Select Shop" />
+                </SelectTrigger>
+                <SelectContent className="bg-background border-border">
+                  <SelectItem value="Shop 1" className="text-xs font-medium cursor-pointer">
+                    Shop 1
+                  </SelectItem>
+                  <SelectItem value="Shop 2" className="text-xs font-medium cursor-pointer">
+                    Shop 2
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="flex items-center gap-1 h-8 sm:h-9 px-2 sm:px-3 rounded-md border border-gold/30 bg-gold/5 text-gold font-semibold text-[11px] sm:text-xs shrink-0 select-none shadow-sm">
+                <Building2 className="h-3.5 w-3.5 shrink-0 text-gold" />
+                <span>{selectedBranch || "Shop 1"}</span>
+              </div>
+            )}
 
-            <div className="ml-auto flex items-center gap-1 sm:gap-2">
+            <div className="ml-auto flex items-center gap-1 sm:gap-2 shrink-0">
               <Button
                 variant="ghost"
                 size="icon"
@@ -318,6 +360,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive border-[1.5px] border-background" />
             )}
               </Button>
+
+
               {/* New Piece Button - visible on inventory page for authorized roles */}
               {pathname.startsWith('/inventory') && ["admin", "employee", "reception"].includes(role) && (
                 <AddPieceDialog

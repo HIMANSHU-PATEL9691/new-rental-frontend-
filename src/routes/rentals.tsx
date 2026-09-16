@@ -337,7 +337,7 @@ export default function RentalsPage() {
       {/* Tablet/desktop: table */}
       <Card className="glass-panel overflow-hidden p-0 hidden sm:block">
         <div className="overflow-x-auto">
-        <Table className="w-full min-w-200">
+        <Table className="w-full min-w-[750px]">
           <TableHeader>
             <TableRow className="hover:bg-transparent border-border">
               <TableHead className="text-[10px] uppercase tracking-[0.25em]">

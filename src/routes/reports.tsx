@@ -12,13 +12,89 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FileText, Filter, UserCheck, UserX, Trash2, Calendar, Download } from "lucide-react";
+import { FileText, Filter, UserCheck, UserX, Trash2, Calendar, Download, Eye, EyeOff, Key, Building2, Pencil } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 import { toast } from "sonner";
 import { authApi, type User } from "@/lib/api";
 import * as XLSX from "xlsx";
+
+function StaffPasswordCell({ user, onUpdated }: { user: User; onUpdated?: () => void }) {
+  const [show, setShow] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const pwd = user.rawPassword || user.password;
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword.trim()) {
+      toast.error("Password cannot be empty");
+      return;
+    }
+    try {
+      setLoading(true);
+      const identifier = user.phone || user.email || user._id;
+      await authApi.updateUserPassword(identifier, newPassword.trim());
+      toast.success(`Password updated for ${user.name}!`);
+      setIsEditing(false);
+      setNewPassword("");
+      if (onUpdated) onUpdated();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update password");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <form onSubmit={handleSave} className="inline-flex items-center gap-1">
+        <Input
+          type="text"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          placeholder="New password"
+          className="h-7 text-xs w-28 px-2 border-gold/50 bg-background font-mono"
+          autoFocus
+        />
+        <Button size="sm" type="submit" disabled={loading} className="h-7 px-2 text-[11px] bg-gold text-gold-foreground hover:bg-gold/90">
+          Save
+        </Button>
+        <Button size="sm" type="button" variant="ghost" onClick={() => { setIsEditing(false); setNewPassword(""); }} className="h-7 px-1.5 text-[11px]">
+          Cancel
+        </Button>
+      </form>
+    );
+  }
+
+  return (
+    <div className="inline-flex items-center gap-1.5 font-mono text-xs bg-secondary/50 text-foreground px-2 py-1 rounded border border-border">
+      <Key className="w-3 h-3 text-gold shrink-0" />
+      <span className="font-semibold">{show ? (pwd || "(Not set)") : (pwd ? "••••••••" : "Not Set")}</span>
+      
+      <button
+        type="button"
+        onClick={() => setShow(!show)}
+        className="ml-1 text-muted-foreground hover:text-foreground p-0.5"
+        title={show ? "Hide Password" : "Show Password"}
+      >
+        {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+      </button>
+
+      <button
+        type="button"
+        onClick={() => { setIsEditing(true); setNewPassword(pwd || ""); }}
+        className="text-gold hover:text-gold/80 ml-1 p-0.5 hover:bg-gold/10 rounded"
+        title="Change Password"
+      >
+        <Pencil className="w-3 h-3" />
+      </button>
+    </div>
+  );
+}
 
 function formatDate(dateStr: string) {
   if (!dateStr) return "";
@@ -51,7 +127,7 @@ export default function ReportsPage() {
     }
   }, []);
 
-  const { rentals, items, customers, loading } = useStore();
+  const { rentals, items, customers, loading, selectedBranch } = useStore();
   // Default to daily for all users (works for both admin and reception)
   const [reportType, setReportType] = useState<"daily" | "monthly" | "items" | "staff">("daily");
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -81,9 +157,11 @@ export default function ReportsPage() {
     let newRentalsCount = filteredRentals.length;
 
     filteredRentals.forEach(r => {
-      totalIncome += (r.total || 0) + (r.penalty || 0);
-      totalDiscount += r.discount || 0;
-      totalAdvance += r.advance || 0;
+      const rentBill = Math.max(0, (Number(r.total) || 0) + (Number(r.penalty) || 0) - (Number(r.discount) || 0));
+      const rentIncome = Math.min(rentBill, Math.max(0, Number(r.advance) || 0));
+      totalIncome += rentIncome;
+      totalDiscount += Number(r.discount) || 0;
+      totalAdvance += rentIncome;
     });
 
     return { totalIncome, totalDiscount, totalAdvance, newRentalsCount };
@@ -93,7 +171,10 @@ export default function ReportsPage() {
     if (reportType !== "items") return [];
     return items.map(item => {
       const itemRentals = rentals.filter(r => r.itemId === item.id);
-      const revenue = itemRentals.reduce((sum, r) => sum + (r.total || 0) + (r.penalty || 0), 0);
+      const revenue = itemRentals.reduce((sum, r) => {
+        const rentBill = Math.max(0, (Number(r.total) || 0) + (Number(r.penalty) || 0) - (Number(r.discount) || 0));
+        return sum + Math.min(rentBill, Math.max(0, Number(r.advance) || 0));
+      }, 0);
       return {
         ...item,
         revenue,
@@ -105,8 +186,8 @@ export default function ReportsPage() {
 
   const loadUsers = async () => {
     try {
-      console.log("[Staff Report] Fetching users...");
-      const data = await authApi.getUsers();
+      console.log("[Staff Report] Fetching users for branch:", selectedBranch);
+      const data = await authApi.getUsers(selectedBranch);
       console.log("[Staff Report] Users fetched:", data);
       const formattedData = data.map((u) => ({ ...u, id: u.id || u._id }));
       setStaffList(formattedData.filter((u) => u.role !== "admin"));
@@ -120,7 +201,7 @@ export default function ReportsPage() {
     if (reportType === "staff") {
       loadUsers();
     }
-  }, [reportType]);
+  }, [reportType, selectedBranch]);
 
   const updateUserStatus = async (identifier: string, status: string, message: string) => {
     try {
@@ -289,11 +370,13 @@ export default function ReportsPage() {
                 <CardTitle className="text-lg">Pending Approvals</CardTitle>
               </CardHeader>
               <div className="overflow-x-auto">
-                <Table className="w-full min-w-200">
+                <Table className="w-full min-w-[700px]">
                   <TableHeader>
                     <TableRow className="border-border">
                       <TableHead className="text-xs uppercase tracking-wider">Name</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider">Contact</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider">Shop</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider">Staff ID (Phone)</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider">Password</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider">Role</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-right">Action</TableHead>
                     </TableRow>
@@ -301,7 +384,7 @@ export default function ReportsPage() {
                   <TableBody>
                     {pendingStaff.length === 0 ? (
                       <TableRow className="border-border hover:bg-transparent">
-                        <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                        <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                           No pending approvals.
                         </TableCell>
                       </TableRow>
@@ -309,7 +392,14 @@ export default function ReportsPage() {
                       pendingStaff.map((s) => (
                         <TableRow key={s.id} className="border-border hover:bg-secondary/30">
                           <TableCell className="font-medium">{s.name}</TableCell>
-                          <TableCell>{getPhoneEmail(s)}</TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                              <Building2 className="w-3 h-3 text-amber-600" />
+                              {s.branch || "Shop 1"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="font-mono text-xs font-semibold">{getPhoneEmail(s)}</TableCell>
+                          <TableCell><StaffPasswordCell user={s} onUpdated={loadUsers} /></TableCell>
                           <TableCell className="capitalize">{s.role}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
@@ -342,11 +432,13 @@ export default function ReportsPage() {
                 <CardTitle className="text-lg">Active Staff</CardTitle>
               </CardHeader>
               <div className="overflow-x-auto">
-                <Table className="w-full min-w-200">
+                <Table className="w-full min-w-[700px]">
                   <TableHeader>
                     <TableRow className="border-border">
                       <TableHead className="text-xs uppercase tracking-wider">Name</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider">Contact</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider">Shop</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider">Staff ID (Phone)</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider">Password</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider">Role</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-right">Action</TableHead>
                     </TableRow>
@@ -354,7 +446,7 @@ export default function ReportsPage() {
                   <TableBody>
                     {approvedStaff.length === 0 ? (
                       <TableRow className="border-border hover:bg-transparent">
-                        <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                        <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                           No active staff found.
                         </TableCell>
                       </TableRow>
@@ -362,7 +454,14 @@ export default function ReportsPage() {
                       approvedStaff.map((s) => (
                         <TableRow key={s.id} className="border-border hover:bg-secondary/30">
                           <TableCell className="font-medium">{s.name}</TableCell>
-                          <TableCell>{getPhoneEmail(s)}</TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                              <Building2 className="w-3 h-3 text-amber-600" />
+                              {s.branch || "Shop 1"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="font-mono text-xs font-semibold">{getPhoneEmail(s)}</TableCell>
+                          <TableCell><StaffPasswordCell user={s} onUpdated={loadUsers} /></TableCell>
                           <TableCell className="capitalize">{s.role}</TableCell>
                           <TableCell className="text-right">
                             <Button
@@ -388,7 +487,7 @@ export default function ReportsPage() {
               <CardTitle className="text-lg">All-Time Item Performance</CardTitle>
             </CardHeader>
             <div className="overflow-x-auto">
-              <Table className="w-full min-w-200">
+              <Table className="w-full min-w-[700px]">
                 <TableHeader>
                   <TableRow className="border-border">
                     <TableHead className="text-xs uppercase tracking-wider">Item ID</TableHead>
@@ -472,52 +571,100 @@ export default function ReportsPage() {
             </div>
 
             <Card className="glass-panel overflow-hidden">
-              <CardHeader>
-                <CardTitle className="text-lg">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base sm:text-lg">
                   {reportType === "daily" ? `Bookings on ${formatDate(selectedDate)}` : `Bookings in ${formatDate(selectedMonth)}`}
                 </CardTitle>
               </CardHeader>
-              <div className="overflow-x-auto">
-                <Table className="w-full min-w-200">
-                  <TableHeader>
-                    <TableRow className="border-border">
-                      <TableHead className="text-xs uppercase tracking-wider">Date</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider">Bill No</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider">Client</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider">Piece</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-right">Value</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-right">Advance</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredRentals.length === 0 ? (
-                      <TableRow className="border-border hover:bg-transparent">
-                        <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
-                          No bookings found for the selected period.
-                        </TableCell>
+              <CardContent className="p-0">
+                {/* Mobile View: Clean Card List (No horizontal scrollbar required) */}
+                <div className="divide-y divide-border sm:hidden">
+                  {filteredRentals.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-muted-foreground">
+                      No bookings found for the selected period.
+                    </div>
+                  ) : (
+                    filteredRentals.map((r) => {
+                      const client = customers.find((c) => c.id === r.customerId);
+                      const item = items.find((i) => i.id === r.itemId);
+                      return (
+                        <div key={r.id} className="p-3.5 space-y-2 hover:bg-secondary/20 transition-colors">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono text-xs font-bold text-amber-800 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                              Bill #{r.billNo || r.id}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground font-medium">
+                              {formatDate((r.createdAt || r.startDate || "").slice(0, 10))}
+                            </span>
+                          </div>
+
+                          <div className="flex items-start justify-between gap-3 pt-0.5">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-bold text-foreground truncate">
+                                {client?.name || "Unknown Client"}
+                              </p>
+                              <p className="text-xs text-muted-foreground truncate mt-0.5">
+                                {item?.name || "Unknown Item"} <span className="text-[10px] text-muted-foreground/80 font-mono">({r.itemNo || r.itemId})</span>
+                              </p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-xs font-bold text-foreground">
+                                {formatCurrencyINR(r.total || 0)}
+                              </p>
+                              <p className="text-[11px] font-semibold text-emerald-600 mt-0.5">
+                                Adv: {formatCurrencyINR(r.advance || 0)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Tablet / Desktop View: Full Table */}
+                <div className="hidden sm:block overflow-x-auto w-full">
+                  <Table className="w-full">
+                    <TableHeader>
+                      <TableRow className="border-border">
+                        <TableHead className="text-xs uppercase tracking-wider whitespace-nowrap">Date</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider whitespace-nowrap">Bill No</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider">Client</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider">Piece</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider text-right whitespace-nowrap">Value</TableHead>
+                        <TableHead className="text-xs uppercase tracking-wider text-right whitespace-nowrap">Advance</TableHead>
                       </TableRow>
-                    ) : (
-                      filteredRentals.map(r => {
-                        const client = customers.find(c => c.id === r.customerId);
-                        const item = items.find(i => i.id === r.itemId);
-                        return (
-                          <TableRow key={r.id} className="border-border hover:bg-secondary/30">
-                            <TableCell className="whitespace-nowrap">{formatDate((r.createdAt || r.startDate || "").slice(0, 10))}</TableCell>
-                            <TableCell>{r.billNo || r.id}</TableCell>
-                            <TableCell>{client?.name || "Unknown"}</TableCell>
-                            <TableCell>
-                              <div className="truncate max-w-50">{item?.name || "Unknown"}</div>
-                              <div className="text-[10px] text-muted-foreground">{r.itemNo || r.itemId}</div>
-                            </TableCell>
-                            <TableCell className="text-right">{formatCurrencyINR(r.total || 0)}</TableCell>
-                            <TableCell className="text-right text-emerald-500">{formatCurrencyINR(r.advance || 0)}</TableCell>
-                          </TableRow>
-                        );
-                      })
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredRentals.length === 0 ? (
+                        <TableRow className="border-border hover:bg-transparent">
+                          <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                            No bookings found for the selected period.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredRentals.map(r => {
+                          const client = customers.find(c => c.id === r.customerId);
+                          const item = items.find(i => i.id === r.itemId);
+                          return (
+                            <TableRow key={r.id} className="border-border hover:bg-secondary/30">
+                              <TableCell className="whitespace-nowrap font-medium text-xs">{formatDate((r.createdAt || r.startDate || "").slice(0, 10))}</TableCell>
+                              <TableCell className="whitespace-nowrap font-mono text-xs font-semibold">{r.billNo || r.id}</TableCell>
+                              <TableCell className="font-medium text-xs">{client?.name || "Unknown"}</TableCell>
+                              <TableCell>
+                                <div className="font-medium text-xs">{item?.name || "Unknown"}</div>
+                                <div className="text-[10px] text-muted-foreground">{r.itemNo || r.itemId}</div>
+                              </TableCell>
+                              <TableCell className="text-right font-display text-sm whitespace-nowrap">{formatCurrencyINR(r.total || 0)}</TableCell>
+                              <TableCell className="text-right font-display text-sm whitespace-nowrap text-emerald-600 font-semibold">{formatCurrencyINR(r.advance || 0)}</TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
             </Card>
           </>
         )}

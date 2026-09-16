@@ -109,9 +109,81 @@ export function ReturnItemsPage() {
       </div>
 
       <div className="rounded-md border border-border bg-card overflow-hidden">
-        <div className="w-full overflow-x-auto">
-<table className="w-full min-w-200 caption-bottom text-sm">
+        {/* Mobile View: Cards (No horizontal scrolling) */}
+        <div className="divide-y divide-border sm:hidden">
+          {returnItemsList.length === 0 ? (
+            <div className="p-6 text-center text-xs text-muted-foreground">
+              No products are currently pending for return.
+            </div>
+          ) : (
+            returnItemsList.map((rental) => {
+              const dueAmount = getDueAmount(rental, rentals);
+              return (
+                <div key={rental.id} className="p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs font-bold text-amber-800 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                      Bill #{rental.billNo || rental.id}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
+                      rental.status === 'overdue' ? 'bg-red-500/10 text-red-500' : 'bg-blue-500/10 text-blue-500'
+                    }`}>
+                      {rental.status}
+                    </span>
+                  </div>
 
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-bold text-foreground">{rental.customer?.name || "Unknown Client"}</p>
+                    <p className="text-[11px] text-muted-foreground">{rental.customer?.phone || "No phone"}</p>
+                  </div>
+
+                  <div className="bg-secondary/30 p-2.5 rounded-md space-y-1 text-xs">
+                    <p className="font-medium text-foreground">{rental.item?.name || "Unknown Piece"}</p>
+                    <p className="text-[10px] text-muted-foreground font-mono">ID: {rental.itemId}</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">Return Date: <span className="font-semibold text-foreground">{formatDate(rental.endDate)}</span></p>
+                  </div>
+
+                  {canSeeFinancials && (
+                    <div className="flex items-center justify-between text-xs pt-1">
+                      <span className={rental.status !== 'active' && dueAmount > 0 ? "text-destructive font-semibold" : "text-muted-foreground"}>
+                        Due: {formatCurrencyINR(rental.status === 'active' ? 0 : dueAmount)}
+                      </span>
+                      {(rental.securityAmount || 0) > 0 && !(rental as any).securityReturned && (
+                        <span className="font-medium text-amber-600">
+                          Refund Sec: {formatCurrencyINR(rental.securityAmount || 0)}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                    <ViewInvoiceDialog rental={rental} />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={!rental.customer?.phone}
+                      onClick={() =>
+                        handleWhatsApp(
+                          rental.customer!.phone,
+                          rental.customer!.name,
+                          rental.item?.name || "Item",
+                          formatDate(rental.endDate)
+                        )
+                      }
+                      className="gap-1.5 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-8"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      WhatsApp
+                    </Button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop View: Table */}
+        <div className="hidden sm:block w-full overflow-x-auto">
+          <table className="w-full caption-bottom text-sm">
             <thead className="[&_tr]:border-b bg-secondary/40">
               <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
                 <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Order Info</th>
@@ -131,64 +203,64 @@ export function ReturnItemsPage() {
                   </td>
                 </tr>
               ) : (
-            returnItemsList.map((rental) => {
-              const dueAmount = getDueAmount(rental, rentals);
-              return (
-                  <tr key={rental.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                    <td className="p-4 align-middle font-medium">
-                      <div>{rental.billNo || rental.id}</div>
-                      {canSeeFinancials && (
-                        <div className="mt-1.5 flex flex-col gap-0.5">
-                      <div className={`text-xs ${rental.status !== 'active' && dueAmount > 0 ? "text-destructive font-medium" : "text-muted-foreground font-normal"}`}>
-                        Due: {formatCurrencyINR(rental.status === 'active' ? 0 : dueAmount)}
-                          </div>
-                      {(rental.securityAmount || 0) > 0 && !(rental as any).securityReturned && (
-                            <div className="text-xs font-medium text-amber-600">
-                          Refund Security: {formatCurrencyINR(rental.securityAmount || 0)}
+                returnItemsList.map((rental) => {
+                  const dueAmount = getDueAmount(rental, rentals);
+                  return (
+                    <tr key={rental.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
+                      <td className="p-4 align-middle font-medium">
+                        <div>{rental.billNo || rental.id}</div>
+                        {canSeeFinancials && (
+                          <div className="mt-1.5 flex flex-col gap-0.5">
+                            <div className={`text-xs ${rental.status !== 'active' && dueAmount > 0 ? "text-destructive font-medium" : "text-muted-foreground font-normal"}`}>
+                              Due: {formatCurrencyINR(rental.status === 'active' ? 0 : dueAmount)}
                             </div>
-                          )}
+                            {(rental.securityAmount || 0) > 0 && !(rental as any).securityReturned && (
+                              <div className="text-xs font-medium text-amber-600">
+                                Refund Security: {formatCurrencyINR(rental.securityAmount || 0)}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-4 align-middle font-semibold">{rental.customer?.name || "Unknown"}</td>
+                      <td className="p-4 align-middle">{rental.customer?.phone || "N/A"}</td>
+                      <td className="p-4 align-middle">
+                        <div>{rental.item?.name || "Unknown"}</div>
+                        <div className="text-xs text-muted-foreground">{rental.itemId}</div>
+                      </td>
+                      <td className="p-4 align-middle font-medium">{formatDate(rental.endDate)}</td>
+                      <td className="p-4 align-middle text-center capitalize">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          rental.status === 'overdue' ? 'bg-red-500/10 text-red-500' : 'bg-blue-500/10 text-blue-500'
+                        }`}>
+                          {rental.status}
+                        </span>
+                      </td>
+                      <td className="p-4 align-middle text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <ViewInvoiceDialog rental={rental} />
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={!rental.customer?.phone}
+                            onClick={() =>
+                              handleWhatsApp(
+                                rental.customer!.phone,
+                                rental.customer!.name,
+                                rental.item?.name || "Item",
+                                formatDate(rental.endDate)
+                              )
+                            }
+                            className="gap-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                            WhatsApp
+                          </Button>
                         </div>
-                      )}
-                    </td>
-                    <td className="p-4 align-middle font-semibold">{rental.customer?.name || "Unknown"}</td>
-                    <td className="p-4 align-middle">{rental.customer?.phone || "N/A"}</td>
-                    <td className="p-4 align-middle">
-                      <div>{rental.item?.name || "Unknown"}</div>
-                      <div className="text-xs text-muted-foreground">{rental.itemId}</div>
-                    </td>
-                    <td className="p-4 align-middle font-medium">{formatDate(rental.endDate)}</td>
-                    <td className="p-4 align-middle text-center capitalize">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        rental.status === 'overdue' ? 'bg-red-500/10 text-red-500' : 'bg-blue-500/10 text-blue-500'
-                      }`}>
-                        {rental.status}
-                      </span>
-                    </td>
-                    <td className="p-4 align-middle text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <ViewInvoiceDialog rental={rental} />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={!rental.customer?.phone}
-                          onClick={() =>
-                            handleWhatsApp(
-                              rental.customer!.phone,
-                              rental.customer!.name,
-                              rental.item?.name || "Item",
-                              formatDate(rental.endDate)
-                            )
-                          }
-                          className="gap-2 text-green-600 hover:text-green-700 hover:bg-green-50"
-                        >
-                          <MessageCircle className="w-4 h-4" />
-                          WhatsApp
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-            );
-            })
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

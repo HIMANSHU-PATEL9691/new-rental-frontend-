@@ -51,15 +51,18 @@ export default function LoginPage() {
       }
       
       const role = String(user.role || "").trim().toLowerCase();
-      const activeBranch = user.branch || branch || "Shop 1";
+      const activeBranch = branch || user.branch || "Shop 1";
       localStorage.setItem("user_role", role);
       localStorage.setItem("user_name", user.name);
       localStorage.setItem("selected_branch", activeBranch);
+      localStorage.setItem("user_branch", activeBranch);
       toast.success(`Logged in as ${user.name} (${activeBranch})`);
       window.location.href = role === "admin" ? "/" : "/availability";
     } catch (err: any) {
       setIsLoading(false);
-      toast.error(err.message || "Failed to connect to the server.");
+      const errMsg = err.message || "Failed to connect to the server.";
+      toast.error(errMsg);
+      alert(errMsg);
     }
   };
 
