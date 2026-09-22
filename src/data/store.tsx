@@ -4,6 +4,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useRef,
   type ReactNode,
 } from "react";
 import {
@@ -100,12 +101,35 @@ function transformRental(rental: any): Rental {
   };
 }
 
+function getInitialCache<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined" || !window.sessionStorage) return fallback;
+  try {
+    const raw = window.sessionStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function setCache<T>(key: string, data: T) {
+  if (typeof window === "undefined" || !window.sessionStorage) return;
+  try {
+    window.sessionStorage.setItem(key, JSON.stringify(data));
+  } catch {}
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<Item[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [rentals, setRentals] = useState<Rental[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<Item[]>(() => getInitialCache("cozy_items", []));
+  const [customers, setCustomers] = useState<Customer[]>(() => getInitialCache("cozy_customers", []));
+  const [rentals, setRentals] = useState<Rental[]>(() => getInitialCache("cozy_rentals", []));
+  const [loading, setLoading] = useState(() => {
+    if (typeof window !== "undefined" && window.sessionStorage) {
+      return !window.sessionStorage.getItem("cozy_items");
+    }
+    return true;
+  });
   const [searchQuery, setSearchQuery] = useState("");
+  const isFetchingRef = useRef(false);
   const [selectedBranch, setSelectedBranchState] = useState<string>(() => {
     if (typeof window !== "undefined" && window.localStorage) {
       const role = (window.localStorage.getItem("user_role") || "").trim().toLowerCase();
@@ -142,6 +166,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshData = async (branchOverride?: string) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
     const role = typeof window !== "undefined" && window.localStorage ? (window.localStorage.getItem("user_role") || "").trim().toLowerCase() : "";
     const userBranch = typeof window !== "undefined" && window.localStorage ? window.localStorage.getItem("user_branch") : null;
     const effectiveBranch = (role && role !== "admin" && userBranch) ? userBranch : (branchOverride !== undefined ? branchOverride : selectedBranch);
@@ -159,14 +186,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         customers: customersData.length,
         rentals: rentalsData.length,
       });
-      setItems(itemsData.map(transformItem));
-      setCustomers(customersData.map(transformCustomer));
-      setRentals(rentalsData.map(transformRental));
+      const mappedItems = itemsData.map(transformItem);
+      const mappedCustomers = customersData.map(transformCustomer);
+      const mappedRentals = rentalsData.map(transformRental);
+
+      setItems(mappedItems);
+      setCustomers(mappedCustomers);
+      setRentals(mappedRentals);
+
+      setCache("cozy_items", mappedItems);
+      setCache("cozy_customers", mappedCustomers);
+      setCache("cozy_rentals", mappedRentals);
       console.info("[store] state updated from backend data");
     } catch (error) {
       console.error('[store] Failed to fetch data:', error);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
       console.info("[store] loading=false");
     }
   };

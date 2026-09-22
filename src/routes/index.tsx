@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import heroImg from "@/assets/hero-velvet.jpg";
 
-const PIE_COLORS = ["#d4af37", "#10b981", "#3b82f6", "#f59e0b", "#8b5cf6"];
+const PIE_COLORS = ["#db9558", "#97a87a", "#a8bba3", "#c47b3e", "#6b8053"];
 
 function formatDayLabel(date: Date) {
   return date.toLocaleDateString(undefined, { weekday: "short" });

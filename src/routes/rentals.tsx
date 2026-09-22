@@ -88,7 +88,20 @@ export default function RentalsPage() {
   const [localSearch, setLocalSearch] = useState("");
   const query = (localSearch || searchQuery || "").trim().toLowerCase();
 
+  // Check if query exactly matches any existing bill number
+  const exactBillMatch = query
+    ? rentals.some((r) => (r.billNo || "").toLowerCase() === query)
+    : false;
+
   const filteredRentals = rentals.filter((r) => {
+    if (!query) return true;
+
+    // If user typed an exact bill number, show only that bill's rentals
+    if (exactBillMatch) {
+      return (r.billNo || "").toLowerCase() === query;
+    }
+
+    // Otherwise search across all fields (partial match)
     const item = getItem(r.itemId);
     const customer = getCustomer(r.customerId);
     const dueAmount = getDueAmount(r, rentals);
@@ -120,7 +133,7 @@ export default function RentalsPage() {
       .filter(Boolean)
       .join(" ")
       .toLowerCase();
-    return !query || searchable.includes(query);
+    return searchable.includes(query);
   });
   const totals = {
     active: filteredRentals.filter((r) => r.status === "active").length,

@@ -89,18 +89,18 @@ function NavList({ pathname, role, onNavigate }: { pathname: string; role: strin
             onClick={onNavigate}
             className={`group relative flex items-center gap-3.5 rounded-xl px-3.5 py-2.5 text-xs font-semibold tracking-wide transition-all duration-200 ${
               active
-                ? "bg-gold/10 text-gold border border-gold/30 shadow-sm"
-                : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 hover:translate-x-1"
+                ? "bg-gold/15 text-gold border border-gold/40 shadow-sm"
+                : "text-foreground/70 hover:bg-secondary hover:text-foreground hover:translate-x-1"
             }`}
           >
             <Icon
               className={`h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110 ${
-                active ? "text-gold" : "text-slate-400 group-hover:text-gold"
+                active ? "text-gold" : "text-muted-foreground group-hover:text-gold"
               }`}
             />
             <span className="truncate">{item.label}</span>
             {active && (
-              <span className="ml-auto h-2 w-2 rounded-full bg-gold shadow-[0_0_6px_#b8860b]" />
+              <span className="ml-auto h-2 w-2 rounded-full bg-gold shadow-[0_0_6px_#db9558]" />
             )}
           </Link>
         );
