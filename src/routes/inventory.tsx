@@ -17,10 +17,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Edit2, Plus, Trash2, Upload, X, ChevronLeft, ChevronRight, CalendarPlus, Maximize2, ZoomIn, ZoomOut, ExternalLink } from "lucide-react";
+import { Edit2, Plus, Trash2, Upload, X, ChevronLeft, ChevronRight, CalendarPlus, Maximize2, ZoomIn, ZoomOut, ExternalLink, SearchX } from "lucide-react";
 import { AddPieceDialog } from "@/components/forms/AddPieceDialog";
 import { EditPieceDialog } from "@/components/forms/EditPieceDialog";
 import { NewRentalDialog } from "@/components/forms/NewRentalDialog";
+import { matchesItemSearch } from "@/lib/searchUtils";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
 
@@ -617,7 +618,7 @@ export default function InventoryPage() {
     }
   }, []);
 
-  const { items, loading, deleteItem, searchQuery, addItem } = useStore();
+  const { items, loading, deleteItem, searchQuery, setSearchQuery, addItem } = useStore();
   const [activeCategory, setActiveCategory] = useState("All");
   const [activeSubcategory, setActiveSubcategory] = useState("All");
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -625,6 +626,8 @@ export default function InventoryPage() {
   const [selectedCatalogItem, setSelectedCatalogItem] = useState<any | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const query = searchQuery.trim().toLowerCase();
+  const compactQuery = query.replace(/[\s-_]/g, "");
+
   const role = typeof window !== "undefined"
     ? localStorage.getItem("user_role") || "employee"
     : "employee";
@@ -655,22 +658,14 @@ export default function InventoryPage() {
 
   const categoryOptions = itemCategories;
 
+  const itemMatchesSearch = (i: any) => {
+    return matchesItemSearch(i, searchQuery);
+  };
+
   const filteredItems = items.filter((i) => {
     const matchesCategory = activeCategory === "All" || i.category === activeCategory;
     const matchesSubcategory = activeSubcategory === "All" || i.subcategory === activeSubcategory;
-    const searchable = [
-      i.customId,
-      i.name,
-      i.designer,
-      i.category,
-      i.subcategory,
-      i.size,
-      i.color,
-      i.status,
-    ]
-      .join(" ")
-      .toLowerCase();
-    return matchesCategory && matchesSubcategory && (!query || searchable.includes(query));
+    return matchesCategory && matchesSubcategory && itemMatchesSearch(i);
   });
 
   const subcategories =
@@ -679,25 +674,7 @@ export default function InventoryPage() {
       : [];
 
   // Counts for UI chips (respects current search query)
-  const normalizedQuery = query;
-  const searchableFor = (i: any) =>
-    [
-      i.customId,
-      i.name,
-      i.designer,
-      i.category,
-      i.subcategory,
-      i.size,
-      i.color,
-      i.status,
-    ]
-      .join(" ")
-      .toLowerCase();
-
-  const matchesSearch = (i: any) =>
-    !normalizedQuery || searchableFor(i).includes(normalizedQuery);
-
-  const availableItems = items.filter(matchesSearch);
+  const availableItems = items.filter(itemMatchesSearch);
 
   const categoryCounts: Record<string, number> = availableItems.reduce(
     (acc: Record<string, number>, i: any) => {
@@ -929,8 +906,28 @@ export default function InventoryPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
         {filteredItems.length === 0 && (
-          <Card className="glass-panel col-span-full p-6 text-sm text-muted-foreground">
-            No inventory pieces match your search.
+          <Card className="glass-panel col-span-full py-12 px-6 text-center text-muted-foreground flex flex-col items-center justify-center gap-3 border border-gold/20">
+            <div className="h-14 w-14 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center text-gold mb-1">
+              <SearchX className="h-7 w-7" />
+            </div>
+            <p className="font-display text-2xl text-foreground font-semibold">
+              {query ? "No item found" : "No items available"}
+            </p>
+            <p className="text-sm text-muted-foreground max-w-md">
+              {query
+                ? `No item found matching "${searchQuery}". Please verify the item number or search term.`
+                : "No inventory pieces match the selected category or filters."}
+            </p>
+            {query && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSearchQuery("")}
+                className="mt-2 text-xs border-gold/40 text-gold hover:bg-gold/10"
+              >
+                Clear Search
+              </Button>
+            )}
           </Card>
         )}
         {filteredItems.map((item) => (

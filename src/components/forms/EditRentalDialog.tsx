@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
+import { findItemByCode } from "@/lib/searchUtils";
 
 import {
   Dialog,
@@ -1216,7 +1217,7 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
                             setForm((f) => {
                               const newPieces = [...f.pieces];
                               newPieces[index] = { ...newPieces[index], itemNo };
-                              const found = items.find((i) => i.customId === itemNo);
+                              const found = findItemByCode(items, itemNo);
                               if (found) {
                                 newPieces[index] = {
                                   ...newPieces[index],

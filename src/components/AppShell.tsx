@@ -309,7 +309,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="relative hidden max-w-md flex-1 sm:block">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search gowns, rentals, clients..."
+                placeholder="Search item no, rentals, clients..."
                 value={searchQuery}
                 onChange={(event) => handleSearchChange(event.currentTarget.value)}
                 className="border-border bg-secondary/50 pl-9 focus-visible:ring-gold/40"
@@ -419,7 +419,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   autoFocus
-                  placeholder="Search..."
+                  placeholder="Search item no, rentals, clients..."
                   value={searchQuery}
                   onChange={(event) => handleSearchChange(event.target.value)}
                   className="border-border bg-secondary/50 pl-9 focus-visible:ring-gold/40"

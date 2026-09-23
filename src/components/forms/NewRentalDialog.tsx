@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect, type ReactNode } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
+import { findItemByCode } from "@/lib/searchUtils";
 import {
   Dialog,
   DialogContent,
@@ -665,7 +666,7 @@ export function NewRentalDialog({
                             const newPieces = [...f.pieces];
                             newPieces[index] = { ...newPieces[index], itemNo };
                             // Try to auto-fill if item exists
-                            const found = items.find(i => i.customId === itemNo);
+                            const found = findItemByCode(items, itemNo);
                             if (found) {
                               newPieces[index] = {
                                 ...newPieces[index],

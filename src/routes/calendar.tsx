@@ -10,6 +10,7 @@ import { formatCurrencyINR } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, Download, Calendar as CalendarIcon, X, Eye } from "lucide-react";
 import * as XLSX from "xlsx";
 import { FALLBACK_IMG, formatImageUrl } from "@/lib/api";
+import { matchesRentalSearch } from "@/lib/searchUtils";
 import {
   Dialog,
   DialogContent,
@@ -65,27 +66,10 @@ export default function CalendarPage() {
   const MONTH = currentDate.getMonth();
   const MONTH_NAME = currentDate.toLocaleString("default", { month: "long", year: "numeric" });
 
-  const query = searchQuery.trim().toLowerCase();
   const filteredRentals = rentals.filter((r) => {
     const item = getItem(r.itemId);
     const customer = getCustomer(r.customerId);
-    const searchable = [
-      r.id,
-      r.status,
-      r.startDate,
-      r.endDate,
-      item?.name,
-      item?.designer,
-      item?.category,
-      customer?.name,
-      customer?.email,
-      customer?.phone,
-      customer?.tier,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    return !query || searchable.includes(query);
+    return matchesRentalSearch(r, item, customer, searchQuery);
   });
   // Date range filter state — must be declared BEFORE monthsToRender useMemo
   const [startDateFilter, setStartDateFilter] = useState<string>("");

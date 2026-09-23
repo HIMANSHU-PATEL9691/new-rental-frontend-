@@ -31,6 +31,7 @@ import { Edit2, Plus, Trash2, Search, Eye } from "lucide-react";
 import { EditRentalDialog } from "@/components/forms/EditRentalDialog";
 import { NewRentalDialog } from "@/components/forms/NewRentalDialog";
 import { ViewInvoiceDialog } from "@/components/forms/ViewInvoiceDialog";
+import { matchesRentalSearch } from "@/lib/searchUtils";
 import { toast } from "sonner";
 
 function formatDate(dateStr: string) {
@@ -87,53 +88,17 @@ export default function RentalsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [localSearch, setLocalSearch] = useState("");
   const query = (localSearch || searchQuery || "").trim().toLowerCase();
-
-  // Check if query exactly matches any existing bill number
-  const exactBillMatch = query
-    ? rentals.some((r) => (r.billNo || "").toLowerCase() === query)
-    : false;
-
   const filteredRentals = rentals.filter((r) => {
-    if (!query) return true;
-
-    // If user typed an exact bill number, show only that bill's rentals
-    if (exactBillMatch) {
-      return (r.billNo || "").toLowerCase() === query;
-    }
-
-    // Otherwise search across all fields (partial match)
     const item = getItem(r.itemId);
     const customer = getCustomer(r.customerId);
     const dueAmount = getDueAmount(r, rentals);
-    const searchable = [
-      r.id,
-      r.billNo,
-      r.itemNo,
-      r.status,
-      r.startDate,
-      r.endDate,
-      r.deliveryDate,
+    return matchesRentalSearch(r, item, customer, query, [
       String(r.total),
       String(dueAmount),
       String(r.discount),
       String(r.advance),
       String(r.securityAmount),
-      r.remark,
-      item?.id,
-      item?.name,
-      item?.designer,
-      item?.category,
-      item?.color,
-      customer?.id,
-      customer?.name,
-      customer?.email,
-      customer?.phone,
-      customer?.tier,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    return searchable.includes(query);
+    ]);
   });
   const totals = {
     active: filteredRentals.filter((r) => r.status === "active").length,
@@ -256,10 +221,13 @@ export default function RentalsPage() {
       {/* Mobile: card list */}
       <div className="space-y-3 sm:hidden">
         {filteredRentals.length === 0 && (
-          <Card className="glass-panel p-4 text-sm text-muted-foreground">
-            {query
-              ? "No rented items match your search."
-              : "No rented items found. Create a rental to show it here."}
+          <Card className="glass-panel p-6 text-center text-muted-foreground flex flex-col items-center justify-center gap-1">
+            <p className="font-display text-base text-foreground font-semibold">No item found</p>
+            <p className="text-xs text-muted-foreground">
+              {query
+                ? `No rentals found matching "${query}". Please verify the item or bill number.`
+                : "No rented items found. Create a rental to show it here."}
+            </p>
           </Card>
         )}
         {filteredRentals.map((r) => {
@@ -384,9 +352,16 @@ export default function RentalsPage() {
               <TableRow className="border-border hover:bg-transparent">
                 <TableCell
                   colSpan={8}
-                  className="py-10 text-center text-sm text-muted-foreground"
+                  className="py-12 text-center text-muted-foreground"
                 >
-                  No rented items match your search.
+                  <div className="flex flex-col items-center justify-center gap-1">
+                    <p className="font-display text-base text-foreground font-semibold">No item found</p>
+                    <p className="text-xs text-muted-foreground">
+                      {query
+                        ? `No rentals found matching "${query}". Please verify the item or bill number.`
+                        : "No rented items found. Create a rental to show it here."}
+                    </p>
+                  </div>
                 </TableCell>
               </TableRow>
             )}

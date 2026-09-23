@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useStore } from "@/data/store";
 import { formatCurrencyINR } from "@/lib/utils";
+import { matchesRentalSearch } from "@/lib/searchUtils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { MessageCircle } from "lucide-react";
@@ -19,10 +20,9 @@ function daysBetween(start: string, end: string) {
 
 export function DuesPage() {
   const { rentals, items, customers, searchQuery } = useStore();
+  const query = searchQuery.trim().toLowerCase();
 
   const duesList = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-
     const billAggregates: Record<string, { totalWithPenalty: number, advance: number }> = {};
     rentals.forEach(r => {
       const item = items.find((i) => i.id === r.itemId);
@@ -88,7 +88,6 @@ export function DuesPage() {
           finalDue = Math.max(0, totalWithPenalty - advance);
         }
 
-
         return {
           ...rental,
           customer,
@@ -99,23 +98,7 @@ export function DuesPage() {
       })
       .filter((r) => {
         if (r.finalDue <= 0) return false;
-        const searchable = [
-          r.id,
-          r.billNo,
-          r.status,
-          r.startDate,
-          r.endDate,
-          String(r.totalWithPenalty),
-          String(r.finalDue),
-          r.customer?.name,
-          r.customer?.phone,
-          r.item?.name,
-          r.item?.id,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        return !query || searchable.includes(query);
+        return matchesRentalSearch(r, r.item, r.customer, query, [String(r.totalWithPenalty), String(r.finalDue)]);
       });
 
     // Sort by highest due amount first
@@ -183,8 +166,11 @@ export function DuesPage() {
         {/* Mobile View: Cards */}
         <div className="divide-y divide-border sm:hidden">
           {duesList.length === 0 ? (
-            <div className="p-6 text-center text-xs text-muted-foreground">
-              No pending dues found. Everyone is cleared!
+            <div className="p-8 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-1">
+              <p className="font-display text-base text-foreground font-semibold">No item found</p>
+              <p className="text-xs text-muted-foreground">
+                {query ? `No pending dues found matching "${searchQuery}".` : "No pending dues found. Everyone is cleared!"}
+              </p>
             </div>
           ) : (
             duesList.map((due) => (
@@ -256,8 +242,13 @@ export function DuesPage() {
             <tbody className="[&_tr:last-child]:border-0">
               {duesList.length === 0 ? (
                 <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                  <td colSpan={7} className="p-4 align-middle text-center py-8 text-muted-foreground">
-                    No pending dues found. Everyone is cleared!
+                  <td colSpan={7} className="p-8 align-middle text-center text-muted-foreground">
+                    <div className="flex flex-col items-center justify-center gap-1">
+                      <p className="font-display text-base text-foreground font-semibold">No item found</p>
+                      <p className="text-xs text-muted-foreground">
+                        {query ? `No pending dues found matching "${searchQuery}".` : "No pending dues found. Everyone is cleared!"}
+                      </p>
+                    </div>
                   </td>
                 </tr>
               ) : (

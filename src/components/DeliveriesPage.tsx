@@ -7,6 +7,7 @@ import { Package, CheckCircle, Calendar, ArrowDownLeft, Search, Clock } from "lu
 import { toast } from "sonner";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ViewInvoiceDialog } from "@/components/forms/ViewInvoiceDialog";
+import { matchesRentalSearch } from "@/lib/searchUtils";
 import {
   Select,
   SelectContent,
@@ -69,6 +70,7 @@ export function DeliveriesPage() {
   const deliveriesList = useMemo(() => {
     const query = localSearch.trim().toLowerCase();
     const targetStr = selectedDate.slice(0, 10);
+
     return rentals
       .filter((r) => {
         const startStr = (r.deliveryDate || r.startDate || "").slice(0, 10);
@@ -95,18 +97,7 @@ export function DeliveriesPage() {
         const customer = customers.find((c) => c.id === rental.customerId);
         return { ...rental, customer, item };
       })
-      .filter((r) => {
-        if (!query) return true;
-        const searchable = [
-          r.billNo,
-          r.itemNo,
-          r.itemId,
-          r.id,
-          r.customer?.name,
-          r.customer?.phone
-        ].filter(Boolean).join(" ").toLowerCase();
-        return searchable.includes(query);
-      });
+      .filter((r) => matchesRentalSearch(r, r.item, r.customer, query));
   }, [rentals, items, customers, selectedDate, statusFilter, localSearch]);
 
   const handleStatusUpdate = async (rental: any, newStatus: string, message: string) => {
@@ -332,8 +323,11 @@ export function DeliveriesPage() {
         {/* Mobile View: Cards (No horizontal scrollbar required) */}
         <div className="divide-y divide-border sm:hidden">
           {deliveriesList.length === 0 ? (
-            <div className="p-6 text-center text-xs text-muted-foreground">
-              No deliveries scheduled for this date.
+            <div className="p-8 text-center text-xs text-muted-foreground flex flex-col items-center justify-center gap-1">
+              <p className="font-display text-base text-foreground font-semibold">No item found</p>
+              <p className="text-xs text-muted-foreground">
+                {localSearch ? `No deliveries found matching "${localSearch}".` : "No deliveries scheduled for this date."}
+              </p>
             </div>
           ) : (
             deliveriesList.map((rental) => {
@@ -410,8 +404,13 @@ export function DeliveriesPage() {
             <tbody className="[&_tr:last-child]:border-0">
               {deliveriesList.length === 0 ? (
                 <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                  <td colSpan={6} className="p-4 align-middle text-center py-8 text-muted-foreground">
-                    No deliveries scheduled for this date.
+                  <td colSpan={6} className="p-8 align-middle text-center text-muted-foreground">
+                    <div className="flex flex-col items-center justify-center gap-1">
+                      <p className="font-display text-base text-foreground font-semibold">No item found</p>
+                      <p className="text-xs text-muted-foreground">
+                        {localSearch ? `No deliveries found matching "${localSearch}".` : "No deliveries scheduled for this date."}
+                      </p>
+                    </div>
                   </td>
                 </tr>
               ) : (

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useStore } from "@/data/store";
 import { formatCurrencyINR } from "@/lib/utils";
 import { formatImageUrl, FALLBACK_IMG } from "@/lib/api";
+import { matchesItemSearch } from "@/lib/searchUtils";
 import {
   CalendarDays,
   Search,
@@ -180,17 +181,13 @@ export function AvailabilityPage() {
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
 
   const availabilityData = useMemo(() => {
-    const query = search.toLowerCase();
     const rawStart = toLocalDateTime(startDate, startTime);
     const rawEnd = toLocalDateTime(endDate, endTime);
     const targetStart = rawStart <= rawEnd ? rawStart : rawEnd;
     const targetEnd = rawStart <= rawEnd ? rawEnd : rawStart;
-    
+
     return items
-      .filter((item) => {
-        const searchable = [item.name, item.id, item.customId, item.category, item.designer].join(" ").toLowerCase();
-        return !query || searchable.includes(query);
-      })
+      .filter((item) => matchesItemSearch(item, search))
       .map((item) => {
         const itemRentals = rentals.filter((r) => r.itemId === item.id && (r.status === "active" || r.status === "upcoming" || r.status === "overdue"));
         
@@ -379,9 +376,14 @@ export function AvailabilityPage() {
       {/* Items List */}
       <div className="grid gap-4">
         {availabilityData.length === 0 ? (
-           <div className="p-8 text-center text-muted-foreground border border-border rounded-lg bg-card text-sm">
-             No products found matching your search.
-           </div>
+          <div className="p-8 text-center text-muted-foreground border border-border rounded-lg bg-card flex flex-col items-center justify-center gap-2">
+            <p className="font-display text-lg text-foreground font-semibold">No item found</p>
+            <p className="text-xs text-muted-foreground">
+              {search
+                ? `No products found matching "${search}". Please verify the item number.`
+                : "No products found matching selected date range."}
+            </p>
+          </div>
         ) : (
           availabilityData.map(({ item, rentals: itemRentals, currentRental }) => {
             const isAvailable = !currentRental;
