@@ -368,7 +368,7 @@ export default function DashboardPage() {
                   <p className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">
                     {label}
                   </p>
-                  <p className="mt-2 font-display text-2xl">{value}</p>
+                  <p className="mt-2 font-sans font-bold text-2xl text-foreground">{value}</p>
                 </button>
               ))}
             </div>
@@ -426,7 +426,7 @@ export default function DashboardPage() {
                     <Icon className="h-3.5 w-3.5" />
                   </div>
                 </div>
-                <div className="font-display text-2xl sm:text-3xl font-bold leading-tight text-foreground">{s.value}</div>
+                <div className="font-sans text-2xl sm:text-3xl font-bold leading-tight text-foreground tracking-tight">{s.value}</div>
                 <div className="mt-2.5 flex items-center text-[11px] font-medium text-emerald">
                   <ArrowUpRight className="mr-0.5 h-3 w-3 shrink-0" /> {s.helper}
                 </div>
@@ -623,7 +623,7 @@ export default function DashboardPage() {
                   onClick={() => openDashboardData("/inventory", item.id)}
                   className="flex w-full items-center gap-3 rounded-md text-left transition-colors hover:bg-secondary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
                 >
-                  <span className="w-7 font-display text-3xl text-gold">{index + 1}</span>
+                  <span className="w-7 font-sans font-bold text-2xl text-gold">{index + 1}</span>
                   <img
                     src={item.image}
                     alt={item.name}

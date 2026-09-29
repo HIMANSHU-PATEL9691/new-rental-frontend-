@@ -159,6 +159,13 @@
     letter-spacing: 0.01em;
   }
 
+  .font-number, .font-numeric, .num-simple {
+    font-family: var(--font-sans) !important;
+    font-variant-numeric: normal;
+    font-feature-settings: "lnum" 1, "tnum" 1;
+    letter-spacing: -0.01em;
+  }
+
   /* Scrollbar custom styling */
   ::-webkit-scrollbar {
     width: 6px;

@@ -392,7 +392,7 @@ function ItemCatalogModal({
               <p className="text-xs uppercase tracking-[0.3em] text-gold font-medium">{item.designer}</p>
               <h2 className="font-display text-3xl sm:text-4xl mt-1 leading-tight text-foreground">{item.name}</h2>
               <div className="flex items-baseline gap-3 mt-4">
-                <span className="text-2xl sm:text-3xl font-display text-gold font-semibold">{formatCurrencyINR(item.pricePerDay)}</span>
+                <span className="text-2xl sm:text-3xl font-sans text-gold font-bold tracking-tight">{formatCurrencyINR(item.pricePerDay)}</span>
                 <span className="text-xs text-muted-foreground uppercase tracking-wider">/ day rental rate</span>
               </div>
             </div>
@@ -430,7 +430,7 @@ function ItemCatalogModal({
             {item.retailValue > 0 && (
               <div className="p-4 rounded-lg border border-gold/30 bg-gold/5 flex items-center justify-between">
                 <span className="text-xs uppercase tracking-wider text-muted-foreground">Estimated Retail MRP</span>
-                <span className="font-display text-lg text-gold font-semibold">{formatCurrencyINR(item.retailValue)}</span>
+                <span className="font-sans text-lg text-gold font-bold">{formatCurrencyINR(item.retailValue)}</span>
               </div>
             )}
           </div>
@@ -587,7 +587,7 @@ function InventoryItemCard({ item, role, deletingId, handleDelete, onSelect }: {
         <p className="text-[10px] uppercase tracking-[0.25em] text-gold font-semibold truncate">{item.designer}</p>
         <h3 className="font-display text-lg mt-1 font-semibold leading-tight text-foreground truncate">{item.name}</h3>
         <div className="flex items-baseline justify-between mt-3 gap-2">
-          <span className="text-gold font-display text-xl font-bold">{formatCurrencyINR(item.pricePerDay)}</span>
+          <span className="text-gold font-sans text-xl font-bold">{formatCurrencyINR(item.pricePerDay)}</span>
           <span className="text-xs text-muted-foreground bg-white/5 border border-white/10 px-2 py-0.5 rounded shrink-0">Size {item.size}</span>
         </div>
         <div className="hairline mt-3" />

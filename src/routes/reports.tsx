@@ -369,7 +369,54 @@ export default function ReportsPage() {
               <CardHeader>
                 <CardTitle className="text-lg">Pending Approvals</CardTitle>
               </CardHeader>
-              <div className="overflow-x-auto">
+              
+              {/* Mobile Card List */}
+              <div className="divide-y divide-border sm:hidden">
+                {pendingStaff.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-muted-foreground">
+                    No pending approvals.
+                  </div>
+                ) : (
+                  pendingStaff.map((s) => (
+                    <div key={s.id} className="p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-sm text-foreground">{s.name}</span>
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                          <Building2 className="w-3 h-3 text-amber-600" />
+                          {s.branch || "Shop 1"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-mono text-muted-foreground">{getPhoneEmail(s)}</span>
+                        <span className="capitalize text-muted-foreground bg-secondary px-2 py-0.5 rounded text-[11px]">{s.role}</span>
+                      </div>
+                      <div className="pt-1">
+                        <StaffPasswordCell user={s} onUpdated={loadUsers} />
+                      </div>
+                      <div className="pt-2 flex justify-end gap-2 border-t border-border/50">
+                        <Button
+                          size="sm"
+                          onClick={() => updateUserStatus(safePhoneOrEmail(s), "active", "Staff approved")}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs flex-1"
+                        >
+                          <UserCheck className="w-3.5 h-3.5 mr-1" /> Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => removeUser(safePhoneOrEmail(s), "Staff rejected")}
+                          className="h-8 text-xs flex-1"
+                        >
+                          <UserX className="w-3.5 h-3.5 mr-1" /> Reject
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Desktop Table */}
+              <div className="hidden sm:block overflow-x-auto">
                 <Table className="w-full min-w-[700px]">
                   <TableHeader>
                     <TableRow className="border-border">
@@ -431,7 +478,47 @@ export default function ReportsPage() {
               <CardHeader>
                 <CardTitle className="text-lg">Active Staff</CardTitle>
               </CardHeader>
-              <div className="overflow-x-auto">
+
+              {/* Mobile Card List */}
+              <div className="divide-y divide-border sm:hidden">
+                {approvedStaff.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-muted-foreground">
+                    No active staff found.
+                  </div>
+                ) : (
+                  approvedStaff.map((s) => (
+                    <div key={s.id} className="p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold text-sm text-foreground">{s.name}</span>
+                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                          <Building2 className="w-3 h-3 text-amber-600" />
+                          {s.branch || "Shop 1"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-mono text-muted-foreground">{getPhoneEmail(s)}</span>
+                        <span className="capitalize text-muted-foreground bg-secondary px-2 py-0.5 rounded text-[11px]">{s.role}</span>
+                      </div>
+                      <div className="pt-1">
+                        <StaffPasswordCell user={s} onUpdated={loadUsers} />
+                      </div>
+                      <div className="pt-2 flex justify-end border-t border-border/50">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => removeUser(safePhoneOrEmail(s), "Staff removed")}
+                          className="text-destructive hover:bg-destructive/10 h-8 text-xs w-full"
+                        >
+                          <Trash2 className="w-3.5 h-3.5 mr-1" /> Remove
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Desktop Table */}
+              <div className="hidden sm:block overflow-x-auto">
                 <Table className="w-full min-w-[700px]">
                   <TableHeader>
                     <TableRow className="border-border">
@@ -486,7 +573,40 @@ export default function ReportsPage() {
             <CardHeader>
               <CardTitle className="text-lg">All-Time Item Performance</CardTitle>
             </CardHeader>
-            <div className="overflow-x-auto">
+
+            {/* Mobile Card List */}
+            <div className="divide-y divide-border sm:hidden">
+              {itemStats.length === 0 ? (
+                <div className="py-8 text-center text-xs text-muted-foreground">
+                  No items found.
+                </div>
+              ) : (
+                itemStats.map(item => (
+                  <div key={item.id} className="p-3.5 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-xs text-foreground truncate">{item.name}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{item.designer} · {item.category}</p>
+                      </div>
+                      <span className="font-mono text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded shrink-0">
+                        {item.id}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs pt-1">
+                      <span className="text-[11px] text-muted-foreground">
+                        {item.rentalCount} rentals
+                      </span>
+                      <span className="font-sans font-bold text-gold text-xs">
+                        {formatCurrencyINR(item.revenue)}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Desktop Table */}
+            <div className="hidden sm:block overflow-x-auto">
               <Table className="w-full min-w-[700px]">
                 <TableHeader>
                   <TableRow className="border-border">
@@ -535,7 +655,7 @@ export default function ReportsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="font-display text-2xl sm:text-3xl truncate">{stats.newRentalsCount}</div>
+                  <div className="font-sans font-bold text-2xl sm:text-3xl text-foreground tracking-tight truncate">{stats.newRentalsCount}</div>
                 </CardContent>
               </Card>
               <Card className="glass-panel">
@@ -545,7 +665,7 @@ export default function ReportsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="font-display text-2xl sm:text-3xl text-gold truncate">{formatCurrencyINR(stats.totalIncome)}</div>
+                  <div className="font-sans font-bold text-2xl sm:text-3xl text-gold tracking-tight truncate">{formatCurrencyINR(stats.totalIncome)}</div>
                 </CardContent>
               </Card>
               <Card className="glass-panel">
@@ -555,7 +675,7 @@ export default function ReportsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="font-display text-2xl sm:text-3xl text-emerald-500 truncate">{formatCurrencyINR(stats.totalAdvance)}</div>
+                  <div className="font-sans font-bold text-2xl sm:text-3xl text-emerald-600 tracking-tight truncate">{formatCurrencyINR(stats.totalAdvance)}</div>
                 </CardContent>
               </Card>
               <Card className="glass-panel">
@@ -565,7 +685,7 @@ export default function ReportsPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="font-display text-2xl sm:text-3xl truncate">{formatCurrencyINR(stats.totalDiscount)}</div>
+                  <div className="font-sans font-bold text-2xl sm:text-3xl text-foreground tracking-tight truncate">{formatCurrencyINR(stats.totalDiscount)}</div>
                 </CardContent>
               </Card>
             </div>
@@ -655,8 +775,8 @@ export default function ReportsPage() {
                                 <div className="font-medium text-xs">{item?.name || "Unknown"}</div>
                                 <div className="text-[10px] text-muted-foreground">{r.itemNo || r.itemId}</div>
                               </TableCell>
-                              <TableCell className="text-right font-display text-sm whitespace-nowrap">{formatCurrencyINR(r.total || 0)}</TableCell>
-                              <TableCell className="text-right font-display text-sm whitespace-nowrap text-emerald-600 font-semibold">{formatCurrencyINR(r.advance || 0)}</TableCell>
+                              <TableCell className="text-right font-sans font-bold text-sm whitespace-nowrap text-foreground">{formatCurrencyINR(r.total || 0)}</TableCell>
+                              <TableCell className="text-right font-sans font-bold text-sm whitespace-nowrap text-emerald-600">{formatCurrencyINR(r.advance || 0)}</TableCell>
                             </TableRow>
                           );
                         })

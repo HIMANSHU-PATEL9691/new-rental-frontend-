@@ -23,12 +23,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useStore } from "@/data/store";
-import { formatCurrencyINR } from "@/lib/utils";
+import { formatCurrencyINR, cn } from "@/lib/utils";
 import type { RentalStatus } from "@/data/mock";
 
 import { AddCustomerDialog } from "./AddCustomerDialog";
 import { AddPieceDialog } from "./AddPieceDialog";
-import { Plus, Trash2, Calendar } from "lucide-react";
+import { Plus, Trash2, Calendar, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
 import { getInvoiceContent, formatDate } from "@/lib/invoiceTemplate";
 
 const schema = z
@@ -85,6 +85,86 @@ function getTimePeriod(timeStr: string) {
   return "Night";
 }
 
+function getItemConflict(
+  item: any,
+  deliveryDate: string,
+  endDate: string,
+  allRentals: any[],
+  currentPieces: any[] = [],
+  currentPieceIndex: number = -1
+) {
+  if (!item) return { isBooked: false, details: "Available" };
+
+  const start = new Date(deliveryDate || today());
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(endDate || deliveryDate || today());
+  end.setHours(0, 0, 0, 0);
+
+  const isSafa = isSafaItem(item);
+
+  // Check if another piece in the current form has already selected this piece
+  let currentBillBookedQty = 0;
+  let currentBillSelected = false;
+  currentPieces.forEach((p, idx) => {
+    if (idx !== currentPieceIndex && (p.itemId === item.id || p.itemId === item.customId)) {
+      currentBillSelected = true;
+      currentBillBookedQty += Number(p.quantity) || 1;
+    }
+  });
+
+  if (!isSafa && currentBillSelected) {
+    return {
+      isBooked: true,
+      details: "Already selected in this bill",
+    };
+  }
+
+  // Check overlapping rentals in the database
+  const overlapping = allRentals.filter((r) => {
+    if (!r) return false;
+    const rItemId = r.itemId || r.item?.customId || (typeof r.item === "string" ? r.item : "");
+    if (rItemId !== item.id && rItemId !== item.customId) return false;
+    if (r.status === "returned") return false;
+
+    const rStart = new Date(r.startDate || r.deliveryDate || "");
+    rStart.setHours(0, 0, 0, 0);
+    const rEnd = new Date(r.endDate || "");
+    rEnd.setHours(0, 0, 0, 0);
+
+    if (isNaN(rStart.getTime()) || isNaN(rEnd.getTime())) return false;
+
+    return start.getTime() <= rEnd.getTime() && end.getTime() >= rStart.getTime();
+  });
+
+  if (isSafa) {
+    const bookedQty = overlapping.reduce((sum, r) => sum + (Number(r.quantity) || 1), 0) + currentBillBookedQty;
+    const stockQty = Number(item.quantity) || 1;
+    const remaining = Math.max(0, stockQty - bookedQty);
+    return {
+      isBooked: remaining <= 0,
+      remainingQty: remaining,
+      stockQty,
+      details: remaining <= 0 ? "Out of Stock" : `${remaining}/${stockQty} available`,
+    };
+  }
+
+  if (overlapping.length > 0) {
+    const first = overlapping[0];
+    const sStr = formatDate(first.startDate || first.deliveryDate);
+    const eStr = formatDate(first.endDate);
+    return {
+      isBooked: true,
+      details: `Booked (${sStr} to ${eStr})`,
+      rental: first,
+    };
+  }
+
+  return {
+    isBooked: false,
+    details: "Available",
+  };
+}
+
 export function NewRentalDialog({
   trigger,
   open,
@@ -98,6 +178,7 @@ export function NewRentalDialog({
 }) {
   const { items, customers, rentals, addRental } = useStore();
   const [internalOpen, setInternalOpen] = useState(false);
+  const [hideBooked, setHideBooked] = useState(true);
   const isControlled = open !== undefined;
   const isOpen = isControlled ? open : internalOpen;
   const setOpen = isControlled ? onOpenChange! : setInternalOpen;
@@ -347,6 +428,36 @@ export function NewRentalDialog({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    // 1. Strict validation: every piece MUST be in inventory and MUST NOT be booked
+    for (let i = 0; i < form.pieces.length; i++) {
+      const p = form.pieces[i];
+      const trimmedNo = (p.itemNo || "").trim();
+
+      if (!trimmedNo && !p.itemId) {
+        toast.error(`Piece #${i + 1}: Please select or enter an item from inventory.`);
+        return;
+      }
+
+      // Check if item exists in inventory
+      const item = items.find((it) => it.id === p.itemId || it.customId === p.itemId) || findItemByCode(items, trimmedNo);
+      if (!item) {
+        toast.error(`Cannot make bill: Item "${trimmedNo || p.itemId}" is NOT present in inventory!`);
+        return;
+      }
+
+      // Make sure itemId is bound to the real inventory item
+      p.itemId = item.id;
+      p.itemNo = item.customId || item.id;
+
+      // Check booking conflict for the piece's delivery and return dates
+      const conflict = getItemConflict(item, p.deliveryDate, p.endDate, rentals, form.pieces, i);
+      if (conflict.isBooked) {
+        toast.error(`Cannot make bill: "${item.name}" (${p.itemNo}) is already booked for selected dates (${conflict.details})!`);
+        return;
+      }
+    }
+
     // Ensure billNo is filled automatically before validation/submission.
     const finalBillNo = await ensureBillNo();
     const parsed = schema.safeParse({ ...form, billNo: finalBillNo });
@@ -369,7 +480,7 @@ export function NewRentalDialog({
     });
 
     if (piecesData.some((p) => !p.item)) {
-      toast.error("Select a valid piece for all entries");
+      toast.error("Cannot make bill: Select a valid piece from inventory for all entries.");
       return;
     }
 
@@ -377,39 +488,6 @@ export function NewRentalDialog({
       `Confirm amount submitted by customer:\n\nTotal Rent: ${formatCurrencyINR(piecesTotal)}\nSecurity deposit: ${formatCurrencyINR(parsed.data.securityAmount)}\nTotal bill: ${formatCurrencyINR(netTotal)}\nAmount paid: ${formatCurrencyINR(parsed.data.advance)}\nBalance: ${formatCurrencyINR(balanceDue)}`,
     );
     if (!confirmedPayment) return;
-
-    for (const p of parsed.data.pieces) {
-      const newStart = new Date(p.deliveryDate);
-      newStart.setHours(0, 0, 0, 0);
-      const newEnd = new Date(p.endDate);
-      newEnd.setHours(0, 0, 0, 0);
-
-      const overlappingRentals = rentals.filter((r) => {
-        if (r.itemId !== p.itemId) return false;
-        if (r.status === "returned") return false;
-
-        const existingStart = new Date(r.startDate || r.deliveryDate || "");
-        existingStart.setHours(0, 0, 0, 0);
-        const existingEnd = new Date(r.endDate || "");
-        existingEnd.setHours(0, 0, 0, 0);
-
-        return newStart.getTime() <= existingEnd.getTime() && newEnd.getTime() >= existingStart.getTime();
-      });
-
-      const item = items.find((i) => i.id === p.itemId);
-      if (isSafaItem(item)) {
-        const bookedQty = overlappingRentals.reduce((sum, r) => sum + (Number((r as any).quantity) || 1), 0);
-        const stockQty = Number((item as any)?.quantity) || 1;
-        if (bookedQty + p.quantity > stockQty) {
-          toast.error(`Only ${Math.max(0, stockQty - bookedQty)} Safa available for selected dates.`);
-          return;
-        }
-      } else if (overlappingRentals.length > 0) {
-        const overlappingRental = overlappingRentals[0];
-        toast.error(`"${item?.name || p.itemId}" is already booked from ${formatDate(overlappingRental.startDate)} to ${formatDate(overlappingRental.endDate)}.`);
-        return;
-      }
-    }
 
     setLoading(true);
     try {
@@ -603,119 +681,274 @@ export function NewRentalDialog({
 
             {/* Rental Pieces Section */}
             <div className="space-y-4 rounded-lg border border-border bg-secondary/10 p-4">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border pb-2">Rental Pieces</h3>
-              {form.pieces.map((piece, index) => (
-                <div key={piece.id} className="relative rounded-md border border-border p-4 bg-background shadow-sm">
-                  {form.pieces.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:text-destructive"
-                      onClick={() => {
-                        setForm(f => ({ ...f, pieces: f.pieces.filter(p => p.id !== piece.id) }));
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 mb-3">
-                    <div className="grid gap-2 min-w-0 sm:col-span-5">
-                      <div className="flex items-center justify-between">
-                        <Label>Piece {index + 1}</Label>
-                        {index === 0 && (
-                          <button
-                            type="button"
-                            onClick={() => setAddPieceOpen(true)}
-                            className="text-[11px] text-gold hover:underline inline-flex items-center gap-1"
-                          >
-                            <Plus className="h-3 w-3" /> Add piece
-                          </button>
-                        )}
-                      </div>
-                      <Select
-                        value={piece.itemId}
-                        onValueChange={(v) => {
-                          const item = items.find((i) => i.id === v);
-                          setForm(f => {
-                            const newPieces = [...f.pieces];
-                            newPieces[index] = { ...newPieces[index], itemId: v, itemNo: item?.id ?? "", rate: item?.pricePerDay ?? 0, quantity: isSafaItem(item) ? Math.max(1, newPieces[index].quantity || 1) : 1 };
-                            return { ...f, pieces: newPieces };
-                          });
+              <div className="flex items-center justify-between border-b border-border pb-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Rental Pieces
+                </h3>
+                <label className="flex items-center gap-1.5 text-xs font-medium cursor-pointer select-none text-slate-700 bg-secondary/60 px-2.5 py-1 rounded-md border border-border hover:bg-secondary transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={hideBooked}
+                    onChange={(e) => setHideBooked(e.target.checked)}
+                    className="h-3.5 w-3.5 accent-amber-600 rounded cursor-pointer"
+                  />
+                  <span>Hide Booked Pieces</span>
+                </label>
+              </div>
+
+              {form.pieces.map((piece, index) => {
+                const selectedItem = items.find((i) => i.id === piece.itemId);
+                const selectedConflict = selectedItem
+                  ? getItemConflict(selectedItem, piece.deliveryDate, piece.endDate, rentals, form.pieces, index)
+                  : null;
+
+                // Status for itemNo input
+                let itemNoStatus: { type: "error" | "success"; text: string } | null = null;
+                if (piece.itemNo.trim()) {
+                  const found = findItemByCode(items, piece.itemNo);
+                  if (!found) {
+                    itemNoStatus = { type: "error", text: "❌ Not in inventory" };
+                  } else {
+                    const conflict = getItemConflict(found, piece.deliveryDate, piece.endDate, rentals, form.pieces, index);
+                    if (conflict.isBooked) {
+                      itemNoStatus = { type: "error", text: `🚫 Booked (${conflict.details})` };
+                    } else {
+                      itemNoStatus = { type: "success", text: `✓ ${found.name}` };
+                    }
+                  }
+                }
+
+                return (
+                  <div key={piece.id} className="relative rounded-md border border-border p-4 bg-background shadow-sm space-y-3">
+                    {form.pieces.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-2 right-2 h-6 w-6 text-muted-foreground hover:text-destructive"
+                        onClick={() => {
+                          setForm((f) => ({ ...f, pieces: f.pieces.filter((p) => p.id !== piece.id) }));
                         }}
                       >
-                        <SelectTrigger className="[&>span]:truncate">
-                          <SelectValue placeholder="Choose a piece..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {items.map((i) => (
-                            <SelectItem key={i.id} value={i.id}>
-                              {i.name} - {formatCurrencyINR(i.pricePerDay)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid gap-2 min-w-0 sm:col-span-4">
-                      <Label>Item No</Label>
-                      <Input
-                        value={piece.itemNo}
-                        onChange={e => {
-                          const itemNo = e.target.value;
-                          setForm(f => {
-                            const newPieces = [...f.pieces];
-                            newPieces[index] = { ...newPieces[index], itemNo };
-                            // Try to auto-fill if item exists
-                            const found = findItemByCode(items, itemNo);
-                            if (found) {
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 mb-1">
+                      <div className="grid gap-2 min-w-0 sm:col-span-5">
+                        <div className="flex items-center justify-between">
+                          <Label className="font-semibold text-slate-800">Piece {index + 1}</Label>
+                          {index === 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setAddPieceOpen(true)}
+                              className="text-[11px] text-gold hover:underline inline-flex items-center gap-1 font-medium"
+                            >
+                              <Plus className="h-3 w-3" /> Add piece
+                            </button>
+                          )}
+                        </div>
+                        <Select
+                          value={piece.itemId}
+                          onValueChange={(v) => {
+                            const item = items.find((i) => i.id === v);
+                            if (!item) return;
+
+                            const conflict = getItemConflict(item, piece.deliveryDate, piece.endDate, rentals, form.pieces, index);
+                            if (conflict.isBooked) {
+                              toast.error(`"${item.name}" is already booked for these dates (${conflict.details})!`);
+                              return;
+                            }
+
+                            setForm((f) => {
+                              const newPieces = [...f.pieces];
                               newPieces[index] = {
                                 ...newPieces[index],
+                                itemId: v,
+                                itemNo: item.customId || item.id,
+                                rate: item.pricePerDay ?? 0,
+                                quantity: isSafaItem(item) ? Math.max(1, newPieces[index].quantity || 1) : 1,
+                              };
+                              return { ...f, pieces: newPieces };
+                            });
+                          }}
+                        >
+                          <SelectTrigger className="[&>span]:truncate bg-card border-border">
+                            <SelectValue placeholder="Choose an inventory piece..." />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-72">
+                            {(() => {
+                              const processed = items.map((i) => ({
+                                item: i,
+                                conflict: getItemConflict(i, piece.deliveryDate, piece.endDate, rentals, form.pieces, index),
+                              }));
+
+                              const filtered = hideBooked
+                                ? processed.filter((p) => !p.conflict.isBooked || p.item.id === piece.itemId)
+                                : processed;
+
+                              if (filtered.length === 0) {
+                                return (
+                                  <div className="py-4 px-3 text-center text-xs text-muted-foreground">
+                                    No available pieces for selected dates.
+                                  </div>
+                                );
+                              }
+
+                              return filtered.map(({ item: i, conflict }) => (
+                                <SelectItem
+                                  key={i.id}
+                                  value={i.id}
+                                  disabled={conflict.isBooked && i.id !== piece.itemId}
+                                  className={conflict.isBooked ? "opacity-60 bg-red-50/50 cursor-not-allowed" : ""}
+                                >
+                                  <div className="flex items-center justify-between w-full gap-2">
+                                    <span className={conflict.isBooked ? "line-through text-slate-500" : "font-medium text-slate-900"}>
+                                      {i.name}
+                                    </span>
+                                    {conflict.isBooked ? (
+                                      <span className="text-[10px] font-bold text-red-600 bg-red-100 border border-red-200 px-1.5 py-0.5 rounded shrink-0">
+                                        BOOKED ({conflict.details})
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs font-bold text-emerald-800 bg-emerald-100/70 border border-emerald-200 px-1.5 py-0.5 rounded shrink-0">
+                                        {formatCurrencyINR(i.pricePerDay)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </SelectItem>
+                              ));
+                            })()}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="grid gap-2 min-w-0 sm:col-span-4">
+                        <div className="flex items-center justify-between">
+                          <Label className="font-semibold text-slate-800">Item No</Label>
+                          {itemNoStatus && (
+                            <span className={`text-[10px] font-bold ${itemNoStatus.type === "error" ? "text-red-600" : "text-emerald-700"}`}>
+                              {itemNoStatus.text}
+                            </span>
+                          )}
+                        </div>
+                        <Input
+                          value={piece.itemNo}
+                          className={cn(
+                            "bg-card border-border",
+                            itemNoStatus?.type === "error" ? "border-red-500 bg-red-50/20 focus-visible:ring-red-500" : "",
+                            itemNoStatus?.type === "success" ? "border-emerald-500 bg-emerald-50/20 focus-visible:ring-emerald-500" : ""
+                          )}
+                          onChange={(e) => {
+                            const itemNo = e.target.value;
+                            setForm((f) => {
+                              const newPieces = [...f.pieces];
+                              if (!itemNo.trim()) {
+                                newPieces[index] = { ...newPieces[index], itemNo: "", itemId: "", rate: 0 };
+                                return { ...f, pieces: newPieces };
+                              }
+
+                              const found = findItemByCode(items, itemNo);
+                              if (!found) {
+                                // NOT in inventory! Clear itemId so it CANNOT be billed
+                                newPieces[index] = { ...newPieces[index], itemNo, itemId: "" };
+                                return { ...f, pieces: newPieces };
+                              }
+
+                              const conflict = getItemConflict(found, piece.deliveryDate, piece.endDate, rentals, f.pieces, index);
+                              if (conflict.isBooked) {
+                                // Booked! Clear itemId so it cannot be billed!
+                                newPieces[index] = { ...newPieces[index], itemNo, itemId: "" };
+                                return { ...f, pieces: newPieces };
+                              }
+
+                              // Valid & available item
+                              newPieces[index] = {
+                                ...newPieces[index],
+                                itemNo: found.customId || found.id || itemNo,
                                 itemId: found.id,
                                 rate: found.pricePerDay ?? 0,
                                 quantity: isSafaItem(found) ? Math.max(1, newPieces[index].quantity || 1) : 1,
                               };
+                              return { ...f, pieces: newPieces };
+                            });
+                          }}
+                          onBlur={() => {
+                            const val = piece.itemNo.trim();
+                            if (!val) return;
+                            const found = findItemByCode(items, val);
+                            if (!found) {
+                              toast.error(`Item No "${val}" does not exist in inventory! Not accepted.`);
+                              setForm((f) => {
+                                const newPieces = [...f.pieces];
+                                newPieces[index] = { ...newPieces[index], itemNo: "", itemId: "", rate: 0 };
+                                return { ...f, pieces: newPieces };
+                              });
+                              return;
                             }
-                            return { ...f, pieces: newPieces };
-                          });
-                        }}
-                        placeholder="Enter Item No"
-                      />
-                    </div>
-                    <div className="grid gap-2 min-w-0 sm:col-span-3">
-                      <Label>Rate (INR)</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        value={piece.rate}
-                        onChange={(e) => setForm(f => {
-                          const newPieces = [...f.pieces];
-                          newPieces[index] = { ...newPieces[index], rate: Number(e.target.value) };
-                          return { ...f, pieces: newPieces };
-                        })}
-                        required
-                      />
-                    </div>
-                    {isSafaItem(items.find((i) => i.id === piece.itemId)) && (
+                            const conflict = getItemConflict(found, piece.deliveryDate, piece.endDate, rentals, form.pieces, index);
+                            if (conflict.isBooked) {
+                              toast.error(`"${found.name}" is already booked for these dates (${conflict.details})!`);
+                              setForm((f) => {
+                                const newPieces = [...f.pieces];
+                                newPieces[index] = { ...newPieces[index], itemNo: "", itemId: "", rate: 0 };
+                                return { ...f, pieces: newPieces };
+                              });
+                            }
+                          }}
+                          placeholder="Enter Item No"
+                        />
+                      </div>
+
                       <div className="grid gap-2 min-w-0 sm:col-span-3">
-                        <Label>Safa Quantity</Label>
+                        <Label className="font-semibold text-slate-800">Rate (INR)</Label>
                         <Input
                           type="number"
-                          min={1}
-                          max={(items.find((i) => i.id === piece.itemId) as any)?.quantity || undefined}
-                          value={piece.quantity}
-                          onChange={(e) => setForm(f => {
-                            const newPieces = [...f.pieces];
-                            newPieces[index] = { ...newPieces[index], quantity: Math.max(1, Number(e.target.value) || 1) };
-                            return { ...f, pieces: newPieces };
-                          })}
+                          min={0}
+                          value={piece.rate}
+                          onChange={(e) =>
+                            setForm((f) => {
+                              const newPieces = [...f.pieces];
+                              newPieces[index] = { ...newPieces[index], rate: Number(e.target.value) };
+                              return { ...f, pieces: newPieces };
+                            })
+                          }
                           required
+                          className="bg-card border-border"
                         />
-                        <p className="text-[10px] text-muted-foreground">
-                          Stock: {(items.find((i) => i.id === piece.itemId) as any)?.quantity ?? 1}
-                        </p>
+                      </div>
+                      {isSafaItem(items.find((i) => i.id === piece.itemId)) && (
+                        <div className="grid gap-2 min-w-0 sm:col-span-3">
+                          <Label>Safa Quantity</Label>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={(items.find((i) => i.id === piece.itemId) as any)?.quantity || undefined}
+                            value={piece.quantity}
+                            onChange={(e) =>
+                              setForm((f) => {
+                                const newPieces = [...f.pieces];
+                                newPieces[index] = { ...newPieces[index], quantity: Math.max(1, Number(e.target.value) || 1) };
+                                return { ...f, pieces: newPieces };
+                              })
+                            }
+                            required
+                          />
+                          <p className="text-[10px] text-muted-foreground">
+                            Stock: {(items.find((i) => i.id === piece.itemId) as any)?.quantity ?? 1}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Conflict Warning banner if dates changed cause booking conflict */}
+                    {selectedConflict?.isBooked && (
+                      <div className="p-2.5 bg-red-100 border border-red-300 text-red-900 rounded-md text-xs font-bold flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                        <span>
+                          Warning: Selected piece "{selectedItem?.name}" is already BOOKED for {formatDate(piece.deliveryDate)} to {formatDate(piece.endDate)} ({selectedConflict.details}). You cannot make a bill for this piece.
+                        </span>
                       </div>
                     )}
-                  </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                      <div className="grid gap-2 p-3 border border-border rounded-md bg-secondary/20">
@@ -861,7 +1094,7 @@ export function NewRentalDialog({
                     />
                   </div>
                 </div>
-              ))}
+              )})}
               <Button
                 type="button"
                 variant="outline"

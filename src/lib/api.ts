@@ -64,6 +64,7 @@ export interface Customer {
   rentals: number;
   joined: string;
   branch?: string;
+  address?: string;
   createdAt: string;
   updatedAt: string;
 }
