@@ -5,6 +5,7 @@ import {
   useMemo,
   useState,
   useRef,
+  useCallback,
   type ReactNode,
 } from "react";
 import {
@@ -185,11 +186,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setSelectedBranchState(branch);
   };
 
-  const getEffectiveBranch = () => {
+  const getEffectiveBranch = useCallback(() => {
     return selectedBranch || "Shop 1";
-  };
+  }, [selectedBranch]);
 
-  const refreshData = async (branchOverride?: string) => {
+  const refreshData = useCallback(async (branchOverride?: string) => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
 
@@ -205,14 +206,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         customersApi.getAll(effectiveBranch),
         rentalsApi.getAll(effectiveBranch),
       ]);
+      const itemsList = Array.isArray(itemsData)
+        ? itemsData
+        : (itemsData && typeof itemsData === "object" && Array.isArray((itemsData as any).items)
+          ? (itemsData as any).items
+          : (itemsData && typeof itemsData === "object" && Array.isArray((itemsData as any).data)
+            ? (itemsData as any).data
+            : []));
+      const customersList = Array.isArray(customersData)
+        ? customersData
+        : (customersData && typeof customersData === "object" && Array.isArray((customersData as any).customers)
+          ? (customersData as any).customers
+          : (customersData && typeof customersData === "object" && Array.isArray((customersData as any).data)
+            ? (customersData as any).data
+            : []));
+      const rentalsList = Array.isArray(rentalsData)
+        ? rentalsData
+        : (rentalsData && typeof rentalsData === "object" && Array.isArray((rentalsData as any).rentals)
+          ? (rentalsData as any).rentals
+          : (rentalsData && typeof rentalsData === "object" && Array.isArray((rentalsData as any).data)
+            ? (rentalsData as any).data
+            : []));
+
       console.info("[store] fetch complete", {
-        items: itemsData.length,
-        customers: customersData.length,
-        rentals: rentalsData.length,
+        items: itemsList.length,
+        customers: customersList.length,
+        rentals: rentalsList.length,
       });
-      const mappedItems = itemsData.map(transformItem);
-      const mappedCustomers = customersData.map(transformCustomer);
-      const mappedRentals = rentalsData.map(transformRental);
+      const mappedItems = itemsList.map(transformItem);
+      const mappedCustomers = customersList.map(transformCustomer);
+      const mappedRentals = rentalsList.map(transformRental);
 
       setItems(mappedItems);
       setCustomers(mappedCustomers);
@@ -231,7 +254,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       isFetchingRef.current = false;
       console.info("[store] loading=false");
     }
-  };
+  }, [selectedBranch]);
+
+  useEffect(() => {
+    console.info("[store] Initial data load");
+    refreshData(selectedBranch);
+  }, [selectedBranch, refreshData]);
 
   useEffect(() => {
     const syncBranchFromStorage = () => {
@@ -425,7 +453,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       getCustomer: (id) => (id ? (customerMap.get(id) || customers.find((c) => c.id === id || c.customId === id)) : undefined),
       refreshData,
     }),
-    [items, customers, rentals, loading, searchQuery, selectedBranch, itemMap, customerMap],
+    [items, customers, rentals, loading, searchQuery, selectedBranch, itemMap, customerMap, refreshData, getEffectiveBranch],
   );
 
   return (

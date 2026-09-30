@@ -1,11 +1,17 @@
 // Web build safety: `process` is not available in browsers.
 // Prefer Vite-style env first, then fallback to EXPO_PUBLIC_*
 export const API_ROOT =
-  (typeof import.meta !== 'undefined' && ((import.meta as any).env?.VITE_API_URL || (import.meta as any).env?.EXPO_PUBLIC_API_URL)) ||
+  (typeof import.meta !== 'undefined' &&
+    ((import.meta as any).env?.VITE_API_URL ||
+     (import.meta as any).env?.EXPO_PUBLIC_API_URL)) ||
   (typeof process !== 'undefined'
-    ? (process as any).env?.VITE_API_URL || (process as any).env?.EXPO_PUBLIC_API_URL
+    ? (process as any).env?.VITE_API_URL ||
+      (process as any).env?.EXPO_PUBLIC_API_URL
     : undefined) ||
-  'http://localhost:3011';
+  (typeof window !== 'undefined' &&
+   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    ? 'http://localhost:3011'
+    : '');
 
 export const FALLBACK_IMG =
   "data:image/svg+xml;utf8," +
@@ -22,7 +28,7 @@ export function formatImageUrl(url?: string): string {
     return trimmed;
   }
   const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-  const base = (API_ROOT || 'http://localhost:3011').replace(/\/$/, '');
+  const base = API_ROOT.replace(/\/$/, '');
   return `${base}${cleanPath}`;
 }
 
@@ -177,7 +183,7 @@ async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
   } catch (error) {
     console.error(`[api] Network error for ${method} ${url}`, error);
     console.error(
-      `[api] Make sure backend is running on ${API_ROOT}. Try opening ${API_ROOT.replace(/\/$/, '')}/health in the browser.`,
+      `[api] Make sure backend is running on ${API_ROOT || 'same-origin'}. Try opening ${(API_ROOT || '').replace(/\/$/, '')}/health in the browser.`,
     );
     throw error;
   }
@@ -201,6 +207,10 @@ async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
           ? data
           : `Request failed with status ${response.status}`;
     throw new Error(message);
+  }
+
+  if (typeof data === 'string' && (data.includes('<!DOCTYPE') || data.includes('<html') || data.includes('<body>'))) {
+    throw new Error(`API endpoint ${url} returned HTML instead of JSON. Ensure the backend server is running on http://localhost:3011.`);
   }
 
   return data as T;

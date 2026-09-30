@@ -123,9 +123,17 @@ export default function ApprovalsPage() {
     try {
       setLoading(true);
       const data = await authApi.getUsers(selectedBranch);
-      setUsers(data as any);
+      const userList = Array.isArray(data)
+        ? data
+        : (data && typeof data === "object" && Array.isArray((data as any).users)
+          ? (data as any).users
+          : (data && typeof data === "object" && Array.isArray((data as any).data)
+            ? (data as any).data
+            : []));
+      setUsers(userList);
     } catch (err: any) {
       toast.error(err.message || "Failed to fetch users");
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -163,9 +171,10 @@ export default function ApprovalsPage() {
     }
   };
 
-  const pendingUsers = users.filter((u) => u.status === "pending");
-  const activeUsers = users.filter((u) => u.status === "active");
-  const disabledUsers = users.filter((u) => u.status === "disabled");
+  const safeUsers = Array.isArray(users) ? users : [];
+  const pendingUsers = safeUsers.filter((u) => u.status === "pending");
+  const activeUsers = safeUsers.filter((u) => u.status === "active");
+  const disabledUsers = safeUsers.filter((u) => u.status === "disabled");
 
   const getIdentifier = (user: User) => user.phone || user.email || user._id;
 
