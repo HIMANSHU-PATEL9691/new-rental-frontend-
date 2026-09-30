@@ -101,11 +101,42 @@ export default function RentalsPage() {
 
   const query = (localSearch || searchQuery || "").trim().toLowerCase();
 
+  const dueAmountMap = useMemo(() => {
+    const billTotals = new Map<string, { total: number; advance: number }>();
+    for (const r of rentals) {
+      if (r.billNo) {
+        const current = billTotals.get(r.billNo) || { total: 0, advance: 0 };
+        current.total += (Number(r.total) || 0) + (Number(r.securityAmount) || 0) + (Number(r.penalty) || 0) - (Number(r.discount) || 0);
+        current.advance += Number(r.advance) || 0;
+        billTotals.set(r.billNo, current);
+      }
+    }
+    const dueMap = new Map<string, number>();
+    for (const [billNo, totals] of billTotals.entries()) {
+      dueMap.set(billNo, Math.max(0, totals.total - totals.advance));
+    }
+    return dueMap;
+  }, [rentals]);
+
+  const calcRentalDue = (rental: any) => {
+    if (rental.billNo && dueAmountMap.has(rental.billNo)) {
+      return dueAmountMap.get(rental.billNo)!;
+    }
+    return Math.max(
+      0,
+      (Number(rental.total) || 0) +
+        (Number(rental.securityAmount) || 0) +
+        (Number(rental.penalty) || 0) -
+        (Number(rental.discount) || 0) -
+        (Number(rental.advance) || 0),
+    );
+  };
+
   const filteredRentals = useMemo(() => {
     return rentals.filter((r) => {
       const item = getItem(r.itemId);
       const customer = getCustomer(r.customerId);
-      const dueAmount = getDueAmount(r, rentals);
+      const dueAmount = calcRentalDue(r);
       return matchesRentalSearch(r, item, customer, query, [
         String(r.total),
         String(dueAmount),
@@ -114,7 +145,7 @@ export default function RentalsPage() {
         String(r.securityAmount),
       ]);
     });
-  }, [rentals, getItem, getCustomer, query]);
+  }, [rentals, getItem, getCustomer, query, dueAmountMap]);
 
   // Group rentals by billNo (or fallback to id)
   const groupedOrders = useMemo(() => {
@@ -151,7 +182,7 @@ export default function RentalsPage() {
           totalRent: Number(r.total) || 0,
           advance: Number(r.advance) || 0,
           securityAmount: Number(r.securityAmount) || 0,
-          dueAmount: getDueAmount(r, rentals),
+          dueAmount: calcRentalDue(r),
           status: (r.status ?? "upcoming") as RentalStatus,
           rentalIds: [r.id],
         });
@@ -175,14 +206,14 @@ export default function RentalsPage() {
     }
 
     return Array.from(map.values());
-  }, [filteredRentals, rentals, getItem, getCustomer]);
+  }, [filteredRentals, getItem, getCustomer, dueAmountMap]);
 
-  const totals = {
+  const totals = useMemo(() => ({
     active: filteredRentals.filter((r) => r.status === "active").length,
     upcoming: filteredRentals.filter((r) => r.status === "upcoming").length,
     overdue: filteredRentals.filter((r) => r.status === "overdue").length,
     returned: filteredRentals.filter((r) => r.status === "returned").length,
-  };
+  }), [filteredRentals]);
 
   const getUniqueBillBalances = (rentalsList: typeof rentals) => {
     const bills = new Set<string>();
@@ -193,23 +224,23 @@ export default function RentalsPage() {
       if (r.billNo) {
         if (!bills.has(r.billNo)) {
           bills.add(r.billNo);
-          total += getDueAmount(r, rentals);
+          total += calcRentalDue(r);
         }
       } else {
-        fallbackTotal += getDueAmount(r, rentals);
+        fallbackTotal += calcRentalDue(r);
       }
     }
     return total + fallbackTotal;
   };
 
   // Calculate balance summary
-  const balanceSummary = {
+  const balanceSummary = useMemo(() => ({
     active: getUniqueBillBalances(filteredRentals.filter((r) => r.status === "active")),
     upcoming: getUniqueBillBalances(filteredRentals.filter((r) => r.status === "upcoming")),
     overdue: getUniqueBillBalances(filteredRentals.filter((r) => r.status === "overdue")),
     returned: getUniqueBillBalances(filteredRentals.filter((r) => r.status === "returned")),
     total: getUniqueBillBalances(filteredRentals),
-  };
+  }), [filteredRentals, dueAmountMap]);
 
   async function handleDelete(rentalIds: string | string[], billNo?: string) {
     const ids = Array.isArray(rentalIds) ? rentalIds : [rentalIds];

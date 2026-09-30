@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link } from "../App";
 import {
   LayoutDashboard,
@@ -148,45 +148,54 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState("");
   const [userName, setUserName] = useState("");
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const todaysFittings = rentals?.filter((r) => {
-    const isDelivery = (r.deliveryDate || r.startDate || "").slice(0, 10) === todayStr;
-    const isReturn = (r.endDate || "").slice(0, 10) === todayStr;
-    return isDelivery || isReturn;
-  }).length || 0;
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
-  const hasOverdue = rentals?.some((r) => {
-    if (r.status === "overdue") return true;
-    if (r.status === "active") {
-      const endStr = (r.endDate || "").slice(0, 10);
-      return endStr && endStr < todayStr;
-    }
-    return false;
-  });
+  const todaysFittings = useMemo(() => {
+    return rentals?.filter((r) => {
+      const isDelivery = (r.deliveryDate || r.startDate || "").slice(0, 10) === todayStr;
+      const isReturn = (r.endDate || "").slice(0, 10) === todayStr;
+      return isDelivery || isReturn;
+    }).length || 0;
+  }, [rentals, todayStr]);
 
-  const itemCategories = Array.from(
-    new Set([
-      ...Object.values(DEFAULT_CATEGORIES),
-      ...items.map((i: any) => i.category).filter(Boolean),
-    ]),
-  );
-
-  const dynamicSubcategoryByCategory = items.reduce(
-    (acc: Record<string, string[]>, item: any) => {
-      if (!item.category || !item.subcategory) return acc;
-      const current = acc[item.category] || [
-        ...(DEFAULT_SUBCATEGORY_BY_CATEGORY[item.category as keyof typeof DEFAULT_SUBCATEGORY_BY_CATEGORY] || []),
-      ];
-      if (!current.includes(item.subcategory)) {
-        current.push(item.subcategory);
+  const hasOverdue = useMemo(() => {
+    return rentals?.some((r) => {
+      if (r.status === "overdue") return true;
+      if (r.status === "active") {
+        const endStr = (r.endDate || "").slice(0, 10);
+        return endStr && endStr < todayStr;
       }
-      acc[item.category] = current;
-      return acc;
-    },
-    {
-      ...DEFAULT_SUBCATEGORY_BY_CATEGORY,
-    } as Record<string, string[]>,
-  );
+      return false;
+    });
+  }, [rentals, todayStr]);
+
+  const itemCategories = useMemo(() => {
+    return Array.from(
+      new Set([
+        ...Object.values(DEFAULT_CATEGORIES),
+        ...items.map((i: any) => i.category).filter(Boolean),
+      ]),
+    );
+  }, [items]);
+
+  const dynamicSubcategoryByCategory = useMemo(() => {
+    return items.reduce(
+      (acc: Record<string, string[]>, item: any) => {
+        if (!item.category || !item.subcategory) return acc;
+        const current = acc[item.category] || [
+          ...(DEFAULT_SUBCATEGORY_BY_CATEGORY[item.category as keyof typeof DEFAULT_SUBCATEGORY_BY_CATEGORY] || []),
+        ];
+        if (!current.includes(item.subcategory)) {
+          current.push(item.subcategory);
+        }
+        acc[item.category] = current;
+        return acc;
+      },
+      {
+        ...DEFAULT_SUBCATEGORY_BY_CATEGORY,
+      } as Record<string, string[]>,
+    );
+  }, [items]);
 
   useEffect(() => {
     setMobileOpen(false);

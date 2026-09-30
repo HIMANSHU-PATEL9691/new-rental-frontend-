@@ -216,12 +216,14 @@ export function EditRentalDialog({
       const totalSecurity = relatedRentals.reduce((sum, r) => sum + (r.securityAmount ?? 0), 0);
 
       const piecesData = relatedRentals.map((r) => {
-        const rItem = getItem(r.itemId);
+        const rItem = getItem(r.itemId) || findItemByCode(items, r.itemNo) || items.find((it) => it.customId === r.itemId || it.customId === r.itemNo);
+        const resolvedItemId = rItem?.id || r.itemId || "";
+        const resolvedItemNo = r.itemNo || rItem?.customId || r.itemId || "";
         return {
           id: r.id || Math.random().toString(),
           rentalId: r.id,
-          itemId: r.itemId || "",
-          itemNo: r.itemNo || r.itemId || "",
+          itemId: resolvedItemId,
+          itemNo: resolvedItemNo,
           deliveryDate: r.deliveryDate ? r.deliveryDate.slice(0, 10) : today(),
           deliveryTime: (r as any).deliveryTime || "10:00",
           deliveryTimePeriod: (r as any).deliveryTimePeriod || "Morning",
@@ -247,6 +249,10 @@ export function EditRentalDialog({
         };
       });
 
+      const fallbackItem = getItem(rental.itemId) || findItemByCode(items, rental.itemNo) || items.find((it) => it.customId === rental.itemId || it.customId === rental.itemNo);
+      const fallbackItemId = fallbackItem?.id || rental.itemId || "";
+      const fallbackItemNo = rental.itemNo || fallbackItem?.customId || rental.itemId || "";
+
       setForm({
         billNo: rental.billNo ?? "",
         address: rental.address ?? "",
@@ -264,8 +270,8 @@ export function EditRentalDialog({
         pieces: piecesData.length > 0 ? piecesData : [{
           id: Math.random().toString(),
           rentalId: rental.id,
-          itemId: rental.itemId || "",
-          itemNo: rental.itemNo || rental.itemId || "",
+          itemId: fallbackItemId,
+          itemNo: fallbackItemNo,
           deliveryDate: rental.deliveryDate ? rental.deliveryDate.slice(0, 10) : today(),
           deliveryTime: (rental as any).deliveryTime || "10:00",
           deliveryTimePeriod: (rental as any).deliveryTimePeriod || "Morning",
@@ -275,7 +281,7 @@ export function EditRentalDialog({
           endTimePeriod: (rental as any).endTimePeriod || "Morning",
           quantity: (rental as any).quantity ?? 1,
           lostQuantity: (rental as any).lostQuantity ?? 0,
-          rate: getRentalAmount(rental, getItem(rental.itemId) ? (getItem(rental.itemId)!.pricePerDay * daysBetween(rental.startDate || today(), rental.endDate || today())) : 0),
+          rate: getRentalAmount(rental, fallbackItem ? (fallbackItem.pricePerDay * daysBetween(rental.startDate || today(), rental.endDate || today())) : 0),
           remark: rental.remark ?? "",
           remarkCompleted: Boolean((rental as any).remarkCompleted),
           remarkConfirmedBy: (rental as any).remarkConfirmedBy ?? "",
@@ -288,7 +294,7 @@ export function EditRentalDialog({
         }],
       });
     }
-  }, [open, rental, relatedRentals, getItem]);
+  }, [open, rental, relatedRentals, getItem, items]);
 
   const [billNoLoading, setBillNoLoading] = useState(false);
 
@@ -860,10 +866,13 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
     }
 
     const piecesData = parsed.data.pieces.map((p) => {
-      const item = items.find((i) => i.id === p.itemId);
+      const trimmedNo = (p.itemNo || "").trim();
+      const item = findItemByCode(items, trimmedNo) || items.find((i) => i.id === p.itemId || i.customId === p.itemId || i.customId === trimmedNo || i.id === trimmedNo);
+      const realItemId = item ? (item.id || item.customId) : p.itemId;
+      const realItemNo = item ? (item.customId || item.id) : (p.itemNo || realItemId);
       const quantity = isSafaItem(item) ? p.quantity : 1;
       const lineTotal = p.rate * quantity;
-      return { ...p, item, lineTotal };
+      return { ...p, itemId: realItemId, itemNo: realItemNo, item, lineTotal };
     });
 
     if (piecesData.some((p) => !p.item)) {
@@ -915,13 +924,13 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
       const remainingRentalIds = form.pieces.map((p) => p.rentalId).filter(Boolean) as string[];
       const deletedRentalIds = originalRentalIds.filter((id) => !remainingRentalIds.includes(id));
 
-      for (const delId of deletedRentalIds) {
-        await deleteRental(delId);
+      if (deletedRentalIds.length > 0) {
+        await Promise.all(deletedRentalIds.map((delId) => deleteRental(delId)));
       }
 
       const piecesTotal = piecesData.reduce((acc, p) => acc + p.lineTotal, 0);
 
-      for (const p of piecesData) {
+      const updatePromises = piecesData.map(async (p) => {
         const ratio = piecesTotal > 0 ? p.lineTotal / piecesTotal : 1 / piecesData.length;
         const pieceAdvance = Math.round(parsed.data.advance * ratio);
         const pieceSecurity = Math.round(parsed.data.securityAmount * ratio);
@@ -983,10 +992,13 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
           if (p.rentalId === rental.id) {
             onUpdated?.(updated);
           }
+          return updated;
         } else {
-          await addRental(payload);
+          return await addRental(payload);
         }
-      }
+      });
+
+      await Promise.all(updatePromises);
 
       toast.success(`Rental bill ${form.billNo || rental.id} updated successfully`);
       setOpen(false);
@@ -1181,14 +1193,14 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
                         <Select
                           value={piece.itemId}
                           onValueChange={(v) => {
-                            const item = items.find((i) => i.id === v);
+                            const item = items.find((i) => i.id === v || i.customId === v);
                             setForm((f) => {
                               const newPieces = [...f.pieces];
                               newPieces[index] = {
                                 ...newPieces[index],
-                                itemId: v,
-                                itemNo: item?.id ?? "",
-                                rate: item?.pricePerDay ?? 0,
+                                itemId: item?.id || v,
+                                itemNo: item?.customId || item?.id || "",
+                                rate: item?.pricePerDay ?? newPieces[index].rate,
                                 quantity: isSafaItem(item) ? Math.max(1, newPieces[index].quantity || 1) : 1,
                               };
                               return { ...f, pieces: newPieces };
@@ -1198,10 +1210,10 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
                           <SelectTrigger className="[&>span]:truncate">
                             <SelectValue placeholder="Choose a piece..." />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="max-h-[300px]">
                             {items.map((i) => (
                               <SelectItem key={i.id} value={i.id}>
-                                {i.name} - {formatCurrencyINR(i.pricePerDay)}
+                                {i.customId ? `(${i.customId}) ` : ""}{i.name} - {formatCurrencyINR(i.pricePerDay)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1216,18 +1228,39 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
                             const itemNo = e.target.value;
                             setForm((f) => {
                               const newPieces = [...f.pieces];
-                              newPieces[index] = { ...newPieces[index], itemNo };
-                              const found = findItemByCode(items, itemNo);
+                              const trimmed = itemNo.trim();
+                              const found = findItemByCode(items, trimmed) || items.find((it) => it.id === trimmed || it.customId === trimmed);
                               if (found) {
                                 newPieces[index] = {
                                   ...newPieces[index],
-                                  itemId: found.id,
-                                  rate: found.pricePerDay ?? 0,
+                                  itemNo,
+                                  itemId: found.id || found.customId,
+                                  rate: found.pricePerDay ?? newPieces[index].rate,
                                   quantity: isSafaItem(found) ? Math.max(1, newPieces[index].quantity || 1) : 1,
                                 };
+                              } else {
+                                newPieces[index] = { ...newPieces[index], itemNo };
                               }
                               return { ...f, pieces: newPieces };
                             });
+                          }}
+                          onBlur={() => {
+                            const trimmed = piece.itemNo.trim();
+                            if (!trimmed) return;
+                            const found = findItemByCode(items, trimmed) || items.find((it) => it.id === trimmed || it.customId === trimmed);
+                            if (found) {
+                              setForm((f) => {
+                                const newPieces = [...f.pieces];
+                                newPieces[index] = {
+                                  ...newPieces[index],
+                                  itemId: found.id || found.customId,
+                                  itemNo: found.customId || found.id || trimmed,
+                                  rate: found.pricePerDay ?? newPieces[index].rate,
+                                  quantity: isSafaItem(found) ? Math.max(1, newPieces[index].quantity || 1) : 1,
+                                };
+                                return { ...f, pieces: newPieces };
+                              });
+                            }
                           }}
                           placeholder="Enter Item No"
                         />

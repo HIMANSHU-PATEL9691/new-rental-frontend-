@@ -66,11 +66,13 @@ export default function CalendarPage() {
   const MONTH = currentDate.getMonth();
   const MONTH_NAME = currentDate.toLocaleString("default", { month: "long", year: "numeric" });
 
-  const filteredRentals = rentals.filter((r) => {
-    const item = getItem(r.itemId);
-    const customer = getCustomer(r.customerId);
-    return matchesRentalSearch(r, item, customer, searchQuery);
-  });
+  const filteredRentals = useMemo(() => {
+    return rentals.filter((r) => {
+      const item = getItem(r.itemId);
+      const customer = getCustomer(r.customerId);
+      return matchesRentalSearch(r, item, customer, searchQuery);
+    });
+  }, [rentals, getItem, getCustomer, searchQuery]);
   // Date range filter state — must be declared BEFORE monthsToRender useMemo
   const [startDateFilter, setStartDateFilter] = useState<string>("");
   const [endDateFilter, setEndDateFilter] = useState<string>("");
@@ -160,27 +162,33 @@ export default function CalendarPage() {
     }
   }, [startDateFilter]);
 
-  const eventsByDate: Record<string, typeof rentals> = {};
-  filteredRentals.forEach((r) => {
-    if (isDateFilterActive && !rangeEvents.some((re) => re.id === r.id)) {
-      return;
+  const rangeEventIds = useMemo(() => {
+    return new Set(rangeEvents.map((re) => re.id));
+  }, [rangeEvents]);
+
+  const eventsByDate: Record<string, typeof rentals> = useMemo(() => {
+    const result: Record<string, typeof rentals> = {};
+    for (const r of filteredRentals) {
+      if (isDateFilterActive && !rangeEventIds.has(r.id)) {
+        continue;
+      }
+      const targetDateStr = (r.deliveryDate || r.startDate || "").slice(0, 10);
+      if (!targetDateStr) continue;
+
+      const [y, m, d] = targetDateStr.split("-").map(Number);
+      if (!y || !m || !d) continue;
+
+      const isRendered = isDateFilterActive
+        ? monthsToRender.some((mo) => mo.year === y && mo.month === m - 1)
+        : (m - 1 === MONTH && y === YEAR);
+      if (!isRendered) continue;
+
+      const key = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      result[key] ??= [];
+      result[key].push(r);
     }
-    const targetDateStr = (r.deliveryDate || r.startDate || "").slice(0, 10);
-    if (!targetDateStr) return;
-
-    const [y, m, d] = targetDateStr.split("-").map(Number);
-    if (!y || !m || !d) return;
-
-    // When range is active show events for ALL rendered months; otherwise only current month
-    const isRendered = isDateFilterActive
-      ? monthsToRender.some((mo) => mo.year === y && mo.month === m - 1)
-      : (m - 1 === MONTH && y === YEAR);
-    if (!isRendered) return;
-
-    const key = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-    eventsByDate[key] ??= [];
-    eventsByDate[key].push(r);
-  });
+    return result;
+  }, [filteredRentals, isDateFilterActive, rangeEventIds, monthsToRender, MONTH, YEAR]);
 
   const handlePrevMonth = () => setCurrentDate(new Date(YEAR, MONTH - 1, 1));
   const handleNextMonth = () => setCurrentDate(new Date(YEAR, MONTH + 1, 1));
@@ -189,14 +197,18 @@ export default function CalendarPage() {
     setCurrentDate(new Date(now.getFullYear(), now.getMonth(), 1));
   };
 
-  const upcoming = filteredRentals
-    .filter((r) => r.status === "upcoming" || r.status === "active")
-    .slice(0, 4);
+  const upcoming = useMemo(() => {
+    return filteredRentals
+      .filter((r) => r.status === "upcoming" || r.status === "active")
+      .slice(0, 4);
+  }, [filteredRentals]);
 
   // For mobile list view: dates with events, sorted ascending
-  const datesWithEvents = Object.entries(eventsByDate)
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, evs]) => ({ date, events: evs }));
+  const datesWithEvents = useMemo(() => {
+    return Object.entries(eventsByDate)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, evs]) => ({ date, events: evs }));
+  }, [eventsByDate]);
 
   const selectedEvents = isRangeModalOpen
     ? rangeEvents

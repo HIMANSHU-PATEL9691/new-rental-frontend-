@@ -71,15 +71,28 @@ export function EditPieceDialog({
   trigger,
   onUpdated,
   disabled,
+  open: controlledOpen,
+  onOpenChange: setControlledOpen,
 }: {
   item: Item;
-  trigger: React.ReactNode;
+  trigger?: React.ReactNode;
   onUpdated?: (updated: Item) => void;
   disabled?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const { updateItem } = useStore();
 
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (val: boolean) => {
+    if (isControlled) {
+      setControlledOpen?.(val);
+    } else {
+      setInternalOpen(val);
+    }
+  };
   const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
@@ -188,7 +201,7 @@ export function EditPieceDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl">Edit Piece</DialogTitle>

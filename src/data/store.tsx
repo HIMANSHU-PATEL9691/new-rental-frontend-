@@ -102,6 +102,8 @@ function transformRental(rental: any): Rental {
   };
 }
 
+import { idbGet, idbSet } from "@/lib/idb";
+
 function getInitialCache<T>(key: string, fallback: T): T {
   if (typeof window === "undefined" || !window.sessionStorage) return fallback;
   try {
@@ -123,14 +125,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<Item[]>(() => getInitialCache("cozy_items", []));
   const [customers, setCustomers] = useState<Customer[]>(() => getInitialCache("cozy_customers", []));
   const [rentals, setRentals] = useState<Rental[]>(() => getInitialCache("cozy_rentals", []));
-  const [loading, setLoading] = useState(() => {
-    if (typeof window !== "undefined" && window.sessionStorage) {
-      return !window.sessionStorage.getItem("cozy_items");
-    }
-    return true;
-  });
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const isFetchingRef = useRef(false);
+
+  // Instant hydration from IndexedDB on startup
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const [cachedItems, cachedCustomers, cachedRentals] = await Promise.all([
+          idbGet<Item[]>("cozy_items"),
+          idbGet<Customer[]>("cozy_customers"),
+          idbGet<Rental[]>("cozy_rentals"),
+        ]);
+        if (active) {
+          if (cachedItems && cachedItems.length > 0) setItems(cachedItems);
+          if (cachedCustomers && cachedCustomers.length > 0) setCustomers(cachedCustomers);
+          if (cachedRentals && cachedRentals.length > 0) setRentals(cachedRentals);
+          if (cachedItems && cachedItems.length > 0) setLoading(false);
+        }
+      } catch (err) {
+        console.warn("[store] IDB read error", err);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const [selectedBranch, setSelectedBranchState] = useState<string>(() => {
     if (typeof window !== "undefined" && window.localStorage) {
       const role = (window.localStorage.getItem("user_role") || "").trim().toLowerCase();
@@ -195,9 +218,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setCustomers(mappedCustomers);
       setRentals(mappedRentals);
 
-      setCache("cozy_items", mappedItems);
       setCache("cozy_customers", mappedCustomers);
       setCache("cozy_rentals", mappedRentals);
+      idbSet("cozy_items", mappedItems);
+      idbSet("cozy_customers", mappedCustomers);
+      idbSet("cozy_rentals", mappedRentals);
       console.info("[store] state updated from backend data");
     } catch (error) {
       console.error('[store] Failed to fetch data:', error);
@@ -232,9 +257,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, [selectedBranch]);
 
-  useEffect(() => {
-    refreshData(selectedBranch);
-  }, [selectedBranch]);
+  const itemMap = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const item of items) {
+      if (item.id) map.set(item.id, item);
+      if (item.customId) map.set(item.customId, item);
+      if ((item as any)._id) map.set(String((item as any)._id), item);
+      if (item.barcode) map.set(item.barcode, item);
+    }
+    return map;
+  }, [items]);
+
+  const customerMap = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const c of customers) {
+      if (c.id) map.set(c.id, c);
+      if (c.customId) map.set(c.customId, c);
+      if ((c as any)._id) map.set(String((c as any)._id), c);
+      if (c.phone) map.set(c.phone, c);
+    }
+    return map;
+  }, [customers]);
 
   const value = useMemo<StoreState>(
     () => ({
@@ -260,7 +303,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const newItem = await itemsApi.create({ ...data, branch: branchToUse });
         console.info("[store] addItem backend response", newItem);
         const transformed = transformItem(newItem);
-        setItems((prev) => [transformed, ...prev]);
+        setItems((prev) => {
+          const next = [transformed, ...prev.filter((i) => i.id !== transformed.id && i.customId !== transformed.id)];
+          idbSet("cozy_items", next);
+          return next;
+        });
         console.info("[store] addItem state updated", transformed);
         return transformed;
       },
@@ -268,7 +315,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         console.info("[store] uploadExcel started", { fileName: file.name, fileSize: file.size, branch: selectedBranch });
         const result = await itemsApi.uploadExcel(file, selectedBranch);
         console.info("[store] uploadExcel backend response", result);
-        // Refresh items after upload
         await refreshData(selectedBranch);
         console.info("[store] uploadExcel data refreshed");
         return result;
@@ -277,25 +323,40 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         console.info("[store] deleteItem started", { id });
         await itemsApi.delete(id);
         console.info("[store] deleteItem backend success", { id });
-        setItems((prev) => prev.filter((item) => item.id !== id));
-        setRentals((prev) => prev.filter((rental) => rental.itemId !== id));
+        setItems((prev) => {
+          const next = prev.filter((item) => item.id !== id && item.customId !== id);
+          idbSet("cozy_items", next);
+          return next;
+        });
+        setRentals((prev) => {
+          const next = prev.filter((rental) => rental.itemId !== id);
+          idbSet("cozy_rentals", next);
+          return next;
+        });
         console.info("[store] deleteItem state updated", { id });
       },
       deleteCustomer: async (id) => {
         console.info("[store] deleteCustomer started", { id });
         await customersApi.delete(id);
         console.info("[store] deleteCustomer backend success", { id });
-        setCustomers((prev) => prev.filter((customer) => customer.id !== id));
-        // Optionally refresh to keep totals in sync
-        await refreshData();
-        console.info("[store] deleteCustomer state refreshed", { id });
+        setCustomers((prev) => {
+          const next = prev.filter((customer) => customer.id !== id && customer.customId !== id);
+          idbSet("cozy_customers", next);
+          return next;
+        });
+        console.info("[store] deleteCustomer state updated", { id });
       },
       updateCustomer: async (id, data) => {
         console.info("[store] updateCustomer started", { id, dataKeys: Object.keys(data || {}) });
         const updated = await customersApi.update(id, data);
         console.info("[store] updateCustomer backend response", updated);
-        await refreshData();
-        return transformCustomer(updated);
+        const transformed = transformCustomer(updated);
+        setCustomers((prev) => {
+          const next = prev.map((cust) => (cust.id === id || cust.customId === id ? transformed : cust));
+          idbSet("cozy_customers", next);
+          return next;
+        });
+        return transformed;
       },
       addCustomer: async (data) => {
         console.info("[store] addCustomer started", data);
@@ -303,7 +364,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const newCustomer = await customersApi.create({ ...data, branch: branchToUse });
         console.info("[store] addCustomer backend response", newCustomer);
         const transformed = transformCustomer(newCustomer);
-        setCustomers((prev) => [transformed, ...prev]);
+        setCustomers((prev) => {
+          const next = [transformed, ...prev.filter((c) => c.id !== transformed.id && c.customId !== transformed.id)];
+          idbSet("cozy_customers", next);
+          return next;
+        });
         console.info("[store] addCustomer state updated", transformed);
         return transformed;
       },
@@ -312,39 +377,55 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const branchToUse = data.branch || getEffectiveBranch();
         const newRental = await rentalsApi.create({ ...data, branch: branchToUse });
         console.info("[store] addRental backend response", newRental);
-        // Refresh data from backend to ensure all state is updated correctly
-        await refreshData();
         const transformed = transformRental(newRental);
-        console.info("[store] addRental data refreshed", transformed);
+        setRentals((prev) => {
+          const next = [transformed, ...prev.filter((r) => r.id !== transformed.id && r.customId !== transformed.id)];
+          idbSet("cozy_rentals", next);
+          return next;
+        });
+        console.info("[store] addRental state updated", transformed);
         return transformed;
       },
       deleteRental: async (id) => {
         console.info("[store] deleteRental started", { id });
         await rentalsApi.delete(id);
         console.info("[store] deleteRental backend success", { id });
-        setRentals((prev) => prev.filter((rental) => rental.id !== id));
-        await refreshData();
-        console.info("[store] deleteRental state refreshed", { id });
+        setRentals((prev) => {
+          const next = prev.filter((rental) => rental.id !== id && rental.customId !== id);
+          idbSet("cozy_rentals", next);
+          return next;
+        });
+        console.info("[store] deleteRental state updated", { id });
       },
       updateItem: async (id, data) => {
         console.info("[store] updateItem started", { id, dataKeys: Object.keys(data || {}) });
         const updated = await itemsApi.update(id, data);
         console.info("[store] updateItem backend response", updated);
-        await refreshData();
-        return transformItem(updated);
+        const transformed = transformItem(updated);
+        setItems((prev) => {
+          const next = prev.map((item) => (item.id === id || item.customId === id ? transformed : item));
+          idbSet("cozy_items", next);
+          return next;
+        });
+        return transformed;
       },
       updateRental: async (id, data) => {
         console.info("[store] updateRental started", { id, dataKeys: Object.keys(data || {}) });
         const updated = await rentalsApi.update(id, data);
         console.info("[store] updateRental backend response", updated);
-        await refreshData();
-        return updated as Rental;
+        const transformed = transformRental(updated);
+        setRentals((prev) => {
+          const next = prev.map((rental) => (rental.id === id || rental.customId === id ? transformed : rental));
+          idbSet("cozy_rentals", next);
+          return next;
+        });
+        return transformed;
       },
-      getItem: (id) => items.find((i) => i.id === id),
-      getCustomer: (id) => customers.find((c) => c.id === id),
+      getItem: (id) => (id ? (itemMap.get(id) || items.find((i) => i.id === id || i.customId === id)) : undefined),
+      getCustomer: (id) => (id ? (customerMap.get(id) || customers.find((c) => c.id === id || c.customId === id)) : undefined),
       refreshData,
     }),
-    [items, customers, rentals, loading, searchQuery, selectedBranch],
+    [items, customers, rentals, loading, searchQuery, selectedBranch, itemMap, customerMap],
   );
 
   return (

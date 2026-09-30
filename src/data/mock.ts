@@ -10,7 +10,9 @@ export type RentalStatus = "active" | "upcoming" | "returned" | "overdue";
 
 export interface Item {
   id: string;
+  _id?: string;
   customId?: string;
+  barcode?: string;
   name: string;
   designer: string;
   category: string;

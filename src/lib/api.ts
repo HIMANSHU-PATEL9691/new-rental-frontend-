@@ -34,6 +34,7 @@ export interface Item {
   _id: string;
   id: string;
   customId: string;
+  barcode?: string;
   name: string;
   designer: string;
   category: string;

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { AppShell } from "@/components/AppShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useStore } from "@/data/store";
@@ -494,7 +494,19 @@ function ItemCatalogModal({
   );
 }
 
-function InventoryItemCard({ item, role, deletingId, handleDelete, onSelect }: { item: any; role: string; deletingId: string | null; handleDelete: (id: string, name: string) => void; onSelect: (item: any) => void; }) {
+function InventoryItemCard({
+  item,
+  role,
+  onSelect,
+  onEdit,
+  onDelete,
+}: {
+  item: any;
+  role: string;
+  onSelect: (item: any) => void;
+  onEdit: (item: any) => void;
+  onDelete: (item: any) => void;
+}) {
   const [imgIndex, setImgIndex] = useState(0);
   const [imgError, setImgError] = useState(false);
   const rawImages = item.images && item.images.length > 0 ? item.images : (item.image ? [item.image] : []);
@@ -548,36 +560,32 @@ function InventoryItemCard({ item, role, deletingId, handleDelete, onSelect }: {
         {(role === "admin" || role === "reception") && (
           <div className="absolute top-3 right-3 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 z-20" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2">
-              <EditPieceDialog
-                item={item}
-                trigger={
-                  <Button type="button" size="icon" variant="outline" className="h-8 w-8 border-gold/40 bg-black/60 text-gold hover:bg-gold hover:text-black transition-colors" aria-label={`Edit ${item.name}`}>
-                    <Edit2 className="h-4 w-4" />
-                  </Button>
-                }
-                onUpdated={() => toast.success(`Updated ${item.name}`)}
-              />
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button type="button" size="icon" variant="destructive" className="h-8 w-8 bg-destructive/90 text-destructive-foreground hover:bg-destructive" aria-label={`Delete ${item.name}`}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="font-display text-2xl">Delete {item.name}?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will remove the piece from inventory. Any rentals linked to this item will also disappear from this screen.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" disabled={deletingId === item.id} onClick={() => handleDelete(item.id, item.name)}>
-                      {deletingId === item.id ? "Deleting..." : "Delete"}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                className="h-8 w-8 border-gold/40 bg-black/60 text-gold hover:bg-gold hover:text-black transition-colors"
+                aria-label={`Edit ${item.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(item);
+                }}
+              >
+                <Edit2 className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                variant="destructive"
+                className="h-8 w-8 bg-destructive/90 text-destructive-foreground hover:bg-destructive"
+                aria-label={`Delete ${item.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(item);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         )}
@@ -624,6 +632,9 @@ export default function InventoryPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [selectedCatalogItem, setSelectedCatalogItem] = useState<any | null>(null);
+  const [editingItem, setEditingItem] = useState<any | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<any | null>(null);
+  const [displayLimit, setDisplayLimit] = useState(36);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const query = searchQuery.trim().toLowerCase();
   const compactQuery = query.replace(/[\s-_]/g, "");
@@ -632,66 +643,84 @@ export default function InventoryPage() {
     ? localStorage.getItem("user_role") || "employee"
     : "employee";
 
-  const itemCategories = Array.from(
-    new Set([
-      ...Object.values(DEFAULT_CATEGORIES),
-      ...items.map((i: any) => i.category).filter(Boolean),
-    ]),
-  );
+  useEffect(() => {
+    setDisplayLimit(36);
+  }, [activeCategory, activeSubcategory, searchQuery]);
 
-  const dynamicSubcategoryByCategory = items.reduce(
-    (acc: Record<string, string[]>, item: any) => {
-      if (!item.category || !item.subcategory) return acc;
-      const current = acc[item.category] || [
-        ...(DEFAULT_SUBCATEGORY_BY_CATEGORY[item.category as keyof typeof DEFAULT_SUBCATEGORY_BY_CATEGORY] || []),
-      ];
-      if (!current.includes(item.subcategory)) {
-        current.push(item.subcategory);
-      }
-      acc[item.category] = current;
-      return acc;
-    },
-    {
-      ...DEFAULT_SUBCATEGORY_BY_CATEGORY,
-    } as Record<string, string[]>,
-  );
+  const itemCategories = useMemo(() => {
+    return Array.from(
+      new Set([
+        ...Object.values(DEFAULT_CATEGORIES),
+        ...items.map((i: any) => i.category).filter(Boolean),
+      ]),
+    );
+  }, [items]);
+
+  const dynamicSubcategoryByCategory = useMemo(() => {
+    return items.reduce(
+      (acc: Record<string, string[]>, item: any) => {
+        if (!item.category || !item.subcategory) return acc;
+        const current = acc[item.category] || [
+          ...(DEFAULT_SUBCATEGORY_BY_CATEGORY[item.category as keyof typeof DEFAULT_SUBCATEGORY_BY_CATEGORY] || []),
+        ];
+        if (!current.includes(item.subcategory)) {
+          current.push(item.subcategory);
+        }
+        acc[item.category] = current;
+        return acc;
+      },
+      {
+        ...DEFAULT_SUBCATEGORY_BY_CATEGORY,
+      } as Record<string, string[]>,
+    );
+  }, [items]);
 
   const categoryOptions = itemCategories;
 
-  const itemMatchesSearch = (i: any) => {
-    return matchesItemSearch(i, searchQuery);
-  };
+  const filteredItems = useMemo(() => {
+    return items.filter((i) => {
+      const matchesCategory = activeCategory === "All" || i.category === activeCategory;
+      const matchesSubcategory = activeSubcategory === "All" || i.subcategory === activeSubcategory;
+      return matchesCategory && matchesSubcategory && matchesItemSearch(i, searchQuery);
+    });
+  }, [items, activeCategory, activeSubcategory, searchQuery]);
 
-  const filteredItems = items.filter((i) => {
-    const matchesCategory = activeCategory === "All" || i.category === activeCategory;
-    const matchesSubcategory = activeSubcategory === "All" || i.subcategory === activeSubcategory;
-    return matchesCategory && matchesSubcategory && itemMatchesSearch(i);
-  });
+  const displayedItems = useMemo(() => {
+    return filteredItems.slice(0, displayLimit);
+  }, [filteredItems, displayLimit]);
 
-  const subcategories =
-    activeCategory !== "All"
+  const subcategories = useMemo(() => {
+    return activeCategory !== "All"
       ? dynamicSubcategoryByCategory[activeCategory] || []
       : [];
+  }, [activeCategory, dynamicSubcategoryByCategory]);
 
   // Counts for UI chips (respects current search query)
-  const availableItems = items.filter(itemMatchesSearch);
+  const availableItems = useMemo(() => {
+    return items.filter((i) => matchesItemSearch(i, searchQuery));
+  }, [items, searchQuery]);
 
-  const categoryCounts: Record<string, number> = availableItems.reduce(
-    (acc: Record<string, number>, i: any) => {
-      if (!i.category) return acc;
-      acc[i.category] = (acc[i.category] || 0) + 1;
-      return acc;
-    },
-    {},
-  );
+  const categoryCounts: Record<string, number> = useMemo(() => {
+    return availableItems.reduce(
+      (acc: Record<string, number>, i: any) => {
+        if (!i.category) return acc;
+        acc[i.category] = (acc[i.category] || 0) + 1;
+        return acc;
+      },
+      {},
+    );
+  }, [availableItems]);
 
-  const typeCounts: Record<string, number> = availableItems.reduce(
-    (acc: Record<string, number>, i: any) => {
-      acc[i.subcategory] = (acc[i.subcategory] || 0) + 1;
-      return acc;
-    },
-    {}
-  );
+  const typeCounts: Record<string, number> = useMemo(() => {
+    return availableItems.reduce(
+      (acc: Record<string, number>, i: any) => {
+        if (!i.subcategory) return acc;
+        acc[i.subcategory] = (acc[i.subcategory] || 0) + 1;
+        return acc;
+      },
+      {},
+    );
+  }, [availableItems]);
 
 
   async function handleDelete(id: string, name: string) {
@@ -930,10 +959,29 @@ export default function InventoryPage() {
             )}
           </Card>
         )}
-        {filteredItems.map((item) => (
-          <InventoryItemCard key={item.id} item={item} role={role} deletingId={deletingId} handleDelete={handleDelete} onSelect={setSelectedCatalogItem} />
+        {displayedItems.map((item) => (
+          <InventoryItemCard
+            key={item.id}
+            item={item}
+            role={role}
+            onSelect={setSelectedCatalogItem}
+            onEdit={setEditingItem}
+            onDelete={setItemToDelete}
+          />
         ))}
       </div>
+
+      {filteredItems.length > displayLimit && (
+        <div className="flex justify-center mt-8 mb-4">
+          <Button
+            variant="outline"
+            onClick={() => setDisplayLimit((prev) => prev + 36)}
+            className="border-gold/50 text-gold hover:bg-gold/10 px-8 py-2 text-xs uppercase tracking-widest font-semibold"
+          >
+            Load More Pieces ({displayedItems.length} of {filteredItems.length})
+          </Button>
+        </div>
+      )}
 
       {selectedCatalogItem && (
         <ItemCatalogModal
@@ -943,6 +991,50 @@ export default function InventoryPage() {
           handleDelete={handleDelete}
           deletingId={deletingId}
         />
+      )}
+
+      {editingItem && (
+        <EditPieceDialog
+          item={editingItem}
+          open={Boolean(editingItem)}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) setEditingItem(null);
+          }}
+          onUpdated={() => {
+            setEditingItem(null);
+          }}
+        />
+      )}
+
+      {itemToDelete && (
+        <AlertDialog
+          open={Boolean(itemToDelete)}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) setItemToDelete(null);
+          }}
+        >
+          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="font-display text-2xl">Delete {itemToDelete.name}?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will remove the piece from inventory. Any rentals linked to this item will also disappear from this screen.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setItemToDelete(null)}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                disabled={deletingId === itemToDelete.id}
+                onClick={async () => {
+                  await handleDelete(itemToDelete.id, itemToDelete.name);
+                  setItemToDelete(null);
+                }}
+              >
+                {deletingId === itemToDelete.id ? "Deleting..." : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </AppShell>
   );

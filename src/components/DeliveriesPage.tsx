@@ -51,7 +51,7 @@ function getDueAmount(rental: any, allRentals: any[] = []) {
 }
 
 export function DeliveriesPage() {
-  const { rentals, items, customers, updateRental } = useStore();
+  const { rentals, items, customers, updateRental, getItem, getCustomer } = useStore();
   const storedRole = typeof window !== 'undefined' ? localStorage.getItem("user_role")?.trim().toLowerCase() || "" : "";
   const [role, setRole] = useState(storedRole);
   const [selectedDate, setSelectedDate] = useState(() => today());
@@ -93,12 +93,12 @@ export function DeliveriesPage() {
         return fallsWithin || isPendingAction;
       })
       .map((rental) => {
-        const item = items.find((i) => i.id === rental.itemId);
-        const customer = customers.find((c) => c.id === rental.customerId);
+        const item = getItem(rental.itemId);
+        const customer = getCustomer(rental.customerId);
         return { ...rental, customer, item };
       })
       .filter((r) => matchesRentalSearch(r, r.item, r.customer, query));
-  }, [rentals, items, customers, selectedDate, statusFilter, localSearch]);
+  }, [rentals, getItem, getCustomer, selectedDate, statusFilter, localSearch]);
 
   const handleStatusUpdate = async (rental: any, newStatus: string, message: string) => {
     setUpdating(rental.id);

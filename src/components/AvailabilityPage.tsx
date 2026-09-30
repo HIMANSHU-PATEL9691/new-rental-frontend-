@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useStore } from "@/data/store";
 import { formatCurrencyINR } from "@/lib/utils";
 import { formatImageUrl, FALLBACK_IMG } from "@/lib/api";
@@ -172,13 +172,18 @@ function ItemPreviewModal({ item, onClose }: { item: any; onClose: () => void })
 }
 
 export function AvailabilityPage() {
-  const { items, rentals, customers } = useStore();
+  const { items, rentals, customers, getCustomer } = useStore();
   const [search, setSearch] = useState("");
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [startTime, setStartTime] = useState(START_OF_DAY);
   const [endTime, setEndTime] = useState(END_OF_DAY);
   const [selectedItem, setSelectedItem] = useState<any | null>(null);
+  const [displayLimit, setDisplayLimit] = useState(24);
+
+  useEffect(() => {
+    setDisplayLimit(24);
+  }, [search, startDate, startTime, endDate, endTime]);
 
   const availabilityData = useMemo(() => {
     const rawStart = toLocalDateTime(startDate, startTime);
@@ -186,10 +191,19 @@ export function AvailabilityPage() {
     const targetStart = rawStart <= rawEnd ? rawStart : rawEnd;
     const targetEnd = rawStart <= rawEnd ? rawEnd : rawStart;
 
+    const rentalsByItemId = new Map<string, any[]>();
+    for (const r of rentals) {
+      if (r.status === "active" || r.status === "upcoming" || r.status === "overdue") {
+        const list = rentalsByItemId.get(r.itemId) || [];
+        list.push(r);
+        rentalsByItemId.set(r.itemId, list);
+      }
+    }
+
     return items
       .filter((item) => matchesItemSearch(item, search))
       .map((item) => {
-        const itemRentals = rentals.filter((r) => r.itemId === item.id && (r.status === "active" || r.status === "upcoming" || r.status === "overdue"));
+        const itemRentals = rentalsByItemId.get(item.id) || [];
         
         itemRentals.sort((a, b) => getRentalBoundary(a.startDate || "", "start").getTime() - getRentalBoundary(b.startDate || "", "start").getTime());
         
@@ -222,6 +236,10 @@ export function AvailabilityPage() {
         };
       });
   }, [items, rentals, search, startDate, startTime, endDate, endTime]);
+
+  const displayedData = useMemo(() => {
+    return availabilityData.slice(0, displayLimit);
+  }, [availabilityData, displayLimit]);
 
   const rawStart = toLocalDateTime(startDate, startTime);
   const rawEnd = toLocalDateTime(endDate, endTime);
@@ -385,7 +403,7 @@ export function AvailabilityPage() {
             </p>
           </div>
         ) : (
-          availabilityData.map(({ item, rentals: itemRentals, currentRental }) => {
+          displayedData.map(({ item, rentals: itemRentals, currentRental }) => {
             const isAvailable = !currentRental;
             const itemImgSrc = formatImageUrl(item.image) || FALLBACK_IMG;
             
@@ -477,7 +495,7 @@ export function AvailabilityPage() {
                       ) : (
                         <div className="space-y-2">
                           {itemRentals.map(rental => {
-                             const customer = customers?.find(c => c.id === rental.customerId);
+                             const customer = getCustomer(rental.customerId);
                              const rentalStart = getRentalBoundary(rental.startDate || "", "start");
                              const rentalEnd = getRentalBoundary(rental.endDate || "", "end");
                              const rangeStart = toLocalDateTime(targetStartDate, targetStartTime);
@@ -522,6 +540,18 @@ export function AvailabilityPage() {
           })
         )}
       </div>
+
+      {availabilityData.length > displayLimit && (
+        <div className="flex justify-center mt-6 mb-4">
+          <Button
+            variant="outline"
+            onClick={() => setDisplayLimit((prev) => prev + 24)}
+            className="border-gold/50 text-gold hover:bg-gold/10 px-8 py-2 text-xs uppercase tracking-widest font-semibold"
+          >
+            Load More Products ({displayedData.length} of {availabilityData.length})
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
