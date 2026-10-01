@@ -137,6 +137,26 @@ export function matchesItemSearch(item: any, query: string): boolean {
  */
 export function findItemByCode(items: any[], code: string) {
   if (!code || !code.trim() || !Array.isArray(items)) return undefined;
+  const raw = code.trim().toLowerCase();
+  const clean = cleanCode(raw);
+
+  const exact = items.find((i) => {
+    if (!i) return false;
+    const cId = (i.customId || "").trim().toLowerCase();
+    const id = (i.id || "").trim().toLowerCase();
+    const bCode = (i.barcode || "").trim().toLowerCase();
+    const iNo = (i.itemNo || "").trim().toLowerCase();
+    return (
+      cId === raw ||
+      id === raw ||
+      bCode === raw ||
+      iNo === raw ||
+      (cId && cleanCode(cId) === clean) ||
+      (id && cleanCode(id) === clean)
+    );
+  });
+  if (exact) return exact;
+
   return items.find((i) => isExactItemCodeMatch(i, code));
 }
 

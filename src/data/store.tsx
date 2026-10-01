@@ -95,11 +95,18 @@ function transformRental(rental: any): Rental {
     id: rental.customId,
     itemId,
     customerId,
+    itemNo: rental.itemNo || rental.item?.customId || itemId || "",
     rate: Number(rental.rate) || Number(rental.total) + Number(rental.discount || 0) || 0,
     quantity: Number(rental.quantity) || 1,
     lostQuantity: Number(rental.lostQuantity) || 0,
-    startDate: formatDateTime(rental.startDate),
+    deliveryDate: rental.deliveryDate ? formatDateTime(rental.deliveryDate) : "",
+    deliveryTime: rental.deliveryTime || "",
+    deliveryTimePeriod: rental.deliveryTimePeriod || "",
+    startDate: formatDateTime(rental.startDate || rental.deliveryDate),
     endDate: formatDateTime(rental.endDate),
+    endTime: rental.endTime || "",
+    endTimePeriod: rental.endTimePeriod || "",
+    billMakingDate: rental.billMakingDate ? formatDateTime(rental.billMakingDate) : "",
   };
 }
 

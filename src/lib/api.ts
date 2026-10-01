@@ -86,9 +86,11 @@ export interface Rental {
   address: string;
   customerId: string;
   deliveryDate: string;
+  deliveryTime?: string;
   deliveryTimePeriod?: 'Morning' | 'Afternoon' | 'Evening' | 'Night' | '';
   startDate: string;
   endDate: string;
+  endTime?: string;
   endTimePeriod?: 'Morning' | 'Afternoon' | 'Evening' | 'Night' | '';
   rate: number;
   quantity?: number;
@@ -99,6 +101,11 @@ export interface Rental {
   remarkConfirmedBy?: string;
   fittingCompleted?: boolean;
   fittingCompletedBy?: string;
+  drycleanCompleted?: boolean;
+  drycleanCompletedBy?: string;
+  drycleanAdminConfirmed?: boolean;
+  drycleanAdminConfirmedBy?: string;
+  drycleanAdminConfirmedAt?: string;
   adminReconfirmed?: boolean;
   adminReconfirmedBy?: string;
   adminReconfirmedAt?: string;
@@ -111,6 +118,10 @@ export interface Rental {
   penalty: number;
   total: number;
   status: 'active' | 'upcoming' | 'returned' | 'overdue';
+  ownerNumber?: string;
+  instaId?: string;
+  billMakingDate?: string;
+  confirmationChecked?: boolean;
   branch?: string;
   createdAt: string;
   updatedAt: string;

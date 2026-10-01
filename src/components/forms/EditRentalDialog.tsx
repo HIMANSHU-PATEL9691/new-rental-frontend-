@@ -867,16 +867,20 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
 
     const piecesData = parsed.data.pieces.map((p) => {
       const trimmedNo = (p.itemNo || "").trim();
-      const item = findItemByCode(items, trimmedNo) || items.find((i) => i.id === p.itemId || i.customId === p.itemId || i.customId === trimmedNo || i.id === trimmedNo);
-      const realItemId = item ? (item.id || item.customId) : p.itemId;
-      const realItemNo = item ? (item.customId || item.id) : (p.itemNo || realItemId);
+      const item = (trimmedNo ? (findItemByCode(items, trimmedNo) || items.find((i) => i.customId?.toLowerCase() === trimmedNo.toLowerCase() || i.id === trimmedNo)) : null) ||
+                   (p.itemId ? items.find((i) => i.id === p.itemId || i.customId === p.itemId) : null);
+      if (!item) {
+        return { ...p, item: null, itemId: "", lineTotal: 0 };
+      }
+      const realItemId = item.id || item.customId;
+      const realItemNo = item.customId || item.id || trimmedNo;
       const quantity = isSafaItem(item) ? p.quantity : 1;
       const lineTotal = p.rate * quantity;
       return { ...p, itemId: realItemId, itemNo: realItemNo, item, lineTotal };
     });
 
-    if (piecesData.some((p) => !p.item)) {
-      toast.error("Select a valid piece for all entries");
+    if (piecesData.some((p) => !p.item || !p.itemId)) {
+      toast.error("Please enter a valid item number from inventory for all entries");
       return;
     }
 
@@ -1221,7 +1225,26 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
                       </div>
 
                       <div className="grid gap-2 min-w-0 sm:col-span-4">
-                        <Label>Item No</Label>
+                        <div className="flex items-center justify-between">
+                          <Label>Item No</Label>
+                          {(() => {
+                            const trimmed = piece.itemNo.trim();
+                            if (!trimmed) return null;
+                            const found = findItemByCode(items, trimmed) || items.find((it) => it.id === trimmed || it.customId === trimmed);
+                            if (!found) {
+                              return (
+                                <span className="text-[10px] font-bold text-red-600">
+                                  ❌ Not in inventory
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="text-[10px] font-bold text-emerald-700">
+                                ✓ {found.name}
+                              </span>
+                            );
+                          })()}
+                        </div>
                         <Input
                           value={piece.itemNo}
                           onChange={(e) => {
@@ -1229,6 +1252,15 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
                             setForm((f) => {
                               const newPieces = [...f.pieces];
                               const trimmed = itemNo.trim();
+                              if (!trimmed) {
+                                newPieces[index] = {
+                                  ...newPieces[index],
+                                  itemNo: "",
+                                  itemId: "",
+                                  rate: 0,
+                                };
+                                return { ...f, pieces: newPieces };
+                              }
                               const found = findItemByCode(items, trimmed) || items.find((it) => it.id === trimmed || it.customId === trimmed);
                               if (found) {
                                 newPieces[index] = {
@@ -1239,7 +1271,13 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
                                   quantity: isSafaItem(found) ? Math.max(1, newPieces[index].quantity || 1) : 1,
                                 };
                               } else {
-                                newPieces[index] = { ...newPieces[index], itemNo };
+                                // NOT in inventory: Clear itemId and rate so it cannot select wrong/previous item
+                                newPieces[index] = {
+                                  ...newPieces[index],
+                                  itemNo,
+                                  itemId: "",
+                                  rate: 0,
+                                };
                               }
                               return { ...f, pieces: newPieces };
                             });
@@ -1257,6 +1295,18 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
                                   itemNo: found.customId || found.id || trimmed,
                                   rate: found.pricePerDay ?? newPieces[index].rate,
                                   quantity: isSafaItem(found) ? Math.max(1, newPieces[index].quantity || 1) : 1,
+                                };
+                                return { ...f, pieces: newPieces };
+                              });
+                            } else {
+                              toast.error(`Item No "${trimmed}" does not exist in inventory! Not accepted.`);
+                              setForm((f) => {
+                                const newPieces = [...f.pieces];
+                                newPieces[index] = {
+                                  ...newPieces[index],
+                                  itemNo: "",
+                                  itemId: "",
+                                  rate: 0,
                                 };
                                 return { ...f, pieces: newPieces };
                               });
