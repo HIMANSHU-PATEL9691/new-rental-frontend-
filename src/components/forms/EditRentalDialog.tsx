@@ -122,6 +122,59 @@ function getTimePeriod(timeStr: string) {
   return "Night";
 }
 
+function parseDateTime(dateVal: any, timeStr?: string, defaultHour = 0, defaultMin = 0): number {
+  if (!dateVal) return NaN;
+  let year: number, month: number, day: number;
+
+  if (typeof dateVal === "string" && /^\d{4}-\d{2}-\d{2}/.test(dateVal)) {
+    const [y, m, d] = dateVal.slice(0, 10).split("-").map(Number);
+    year = y;
+    month = m - 1;
+    day = d;
+  } else if (typeof dateVal === "string" && /^\d{2}\/\d{2}\/\d{4}/.test(dateVal)) {
+    const [d, m, y] = dateVal.slice(0, 10).split("/").map(Number);
+    year = y;
+    month = m - 1;
+    day = d;
+  } else {
+    const dObj = new Date(dateVal);
+    if (isNaN(dObj.getTime())) return NaN;
+    year = dObj.getFullYear();
+    month = dObj.getMonth();
+    day = dObj.getDate();
+  }
+
+  let hours = defaultHour;
+  let minutes = defaultMin;
+
+  if (timeStr && typeof timeStr === "string" && timeStr.trim()) {
+    const cleanTime = timeStr.trim().toLowerCase();
+    const isPM = cleanTime.includes("pm");
+    const isAM = cleanTime.includes("am");
+    const digitsOnly = cleanTime.replace(/[^0-9:]/g, "");
+    const timeParts = digitsOnly.split(":");
+    if (timeParts.length >= 2) {
+      let h = parseInt(timeParts[0], 10);
+      let m = parseInt(timeParts[1], 10);
+      if (!isNaN(h) && !isNaN(m)) {
+        if (isPM && h < 12) h += 12;
+        if (isAM && h === 12) h = 0;
+        hours = h;
+        minutes = m;
+      }
+    } else if (timeParts.length === 1 && timeParts[0]) {
+      let h = parseInt(timeParts[0], 10);
+      if (!isNaN(h)) {
+        if (isPM && h < 12) h += 12;
+        if (isAM && h === 12) h = 0;
+        hours = h;
+      }
+    }
+  }
+
+  return new Date(year, month, day, hours, minutes, 0, 0).getTime();
+}
+
 const DEFAULT_POLICIES = `1. Please return the rented piece on or before the due date to avoid penalty charges.\n2. Any damage, burns, or alterations to the piece will incur additional fees.\n3. Booking advance is strictly non-refundable.\n4. Original ID proof must be deposited at the time of pickup.\n\n1. कृपया पेनल्टी शुल्क से बचने के लिए किराए पर ली गई ड्रेस को नियत तारीख पर या उससे पहले वापस करें।\n2. ड्रेस में किसी भी प्रकार का नुकसान, जलने या बदलाव होने पर अतिरिक्त शुल्क लिया जाएगा।\n3. बुकिंग एडवांस वापस नहीं किया जाएगा।\n4. पिकअप के समय मूल आईडी प्रूफ जमा करना अनिवार्य है।`;
 function getPoliciesHtml() {
   const policies = typeof window !== "undefined" ? localStorage.getItem("rental_policies") ?? DEFAULT_POLICIES : DEFAULT_POLICIES;
@@ -253,7 +306,7 @@ export function EditRentalDialog({
       const fallbackItemId = fallbackItem?.id || rental.itemId || "";
       const fallbackItemNo = rental.itemNo || fallbackItem?.customId || rental.itemId || "";
 
-      setForm({
+      const initialFormState = {
         billNo: rental.billNo ?? "",
         address: rental.address ?? "",
         customerId: rental.customerId ?? "",
@@ -292,7 +345,16 @@ export function EditRentalDialog({
           drycleanAdminConfirmed: Boolean((rental as any).drycleanAdminConfirmed),
           drycleanAdminConfirmedBy: (rental as any).drycleanAdminConfirmedBy ?? "",
         }],
+      };
+
+      console.log("[EditRentalDialog] Dialog opened for rental:", {
+        rentalId: rental.id,
+        billNo: rental.billNo,
+        relatedRentalsCount: relatedRentals.length,
+        initialFormState,
       });
+
+      setForm(initialFormState);
     }
   }, [open, rental, relatedRentals, getItem, items]);
 
@@ -321,7 +383,9 @@ export function EditRentalDialog({
       }
     }
 
-    setForm((c) => ({ ...c, billNo: `BILL-${String(nextSeq).padStart(4, "0")}` }));
+    const generatedBillNo = `BILL-${String(nextSeq).padStart(4, "0")}`;
+    console.log("[EditRentalDialog] Generated BillNo:", generatedBillNo);
+    setForm((c) => ({ ...c, billNo: generatedBillNo }));
     setBillNoLoading(false);
   }
 
@@ -437,7 +501,7 @@ export function EditRentalDialog({
         </div>
         <div class="thermal-title">${invoiceTitle}</div>
         <div class="thermal-row"><span>Invoice</span><span># ${form.billNo || rental.billNo || rental.id}</span></div>
-        <div class="thermal-row"><span>Date</span><span>${form.billMakingDate ? new Date(form.billMakingDate).toLocaleDateString("en-IN") : "-"}</span></div>
+        <div class="thermal-row"><span>Date</span><span>${form.billMakingDate ? new Date(form.billMakingDate).toLocaleDateString("en-IN") : (rental as any).createdAt ? new Date((rental as any).createdAt).toLocaleDateString("en-IN") : new Date().toLocaleDateString("en-IN")}</span></div>
         <div class="thermal-row"><span>Client</span><span>${customer?.name || rental.customerId}</span></div>
         ${form.instaId ? `<div class="thermal-row"><span>Insta ID</span><span>${form.instaId}</span></div>` : ""}
         <div class="thermal-divider"></div>
@@ -532,6 +596,13 @@ export function EditRentalDialog({
       return;
     }
 
+    console.log("[EditRentalDialog] handleStatusChange:", {
+      prevStatus: form.status,
+      nextStatus: v,
+      newAdvance,
+      newSecurityReturned,
+    });
+
     setForm((c) => ({
       ...c,
       status: v,
@@ -571,7 +642,7 @@ export function EditRentalDialog({
     const message = `*SAJAN SAGAR COLLECTION - ${invoiceTitle}*
       
 *Invoice:* ${form.billNo || rental.billNo || rental.id}
-*Date:* ${form.billMakingDate ? new Date(form.billMakingDate).toLocaleDateString("en-IN") : "-"}
+*Date:* ${form.billMakingDate ? new Date(form.billMakingDate).toLocaleDateString("en-IN") : (rental as any).createdAt ? new Date((rental as any).createdAt).toLocaleDateString("en-IN") : new Date().toLocaleDateString("en-IN")}
 *Client:* ${customer?.name || rental.customerId}
 *Pieces:* 
 ${piecesData
@@ -676,7 +747,7 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
           <div class="invoice-title">
             <h2>${invoiceTitle}</h2>
             <p># ${form.billNo || rental.billNo || rental.id}</p>
-            <p>Date: ${form.billMakingDate ? new Date(form.billMakingDate).toLocaleDateString("en-IN") : "-"}</p>
+            <p>Date: ${form.billMakingDate ? new Date(form.billMakingDate).toLocaleDateString("en-IN") : (rental as any).createdAt ? new Date((rental as any).createdAt).toLocaleDateString("en-IN") : new Date().toLocaleDateString("en-IN")}</p>
           </div>
         </div>
         
@@ -854,8 +925,12 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await ensureBillNo();
+
+    console.log("[EditRentalDialog] Submitting form...", { form });
+
     const parsed = schema.safeParse(form);
     if (!parsed.success) {
+      console.error("[EditRentalDialog] Validation errors:", parsed.error.issues);
       toast.error(parsed.error.issues[0]?.message ?? "Invalid input");
       return;
     }
@@ -879,6 +954,8 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
       return { ...p, itemId: realItemId, itemNo: realItemNo, item, lineTotal };
     });
 
+    console.log("[EditRentalDialog] Processed piecesData:", piecesData);
+
     if (piecesData.some((p) => !p.item || !p.itemId)) {
       toast.error("Please enter a valid item number from inventory for all entries");
       return;
@@ -887,23 +964,39 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
     const currentRentalIds = form.pieces.map((p) => p.rentalId).filter(Boolean) as string[];
 
     for (const p of piecesData) {
-      const newStart = new Date(p.deliveryDate || p.startDate);
-      newStart.setHours(0, 0, 0, 0);
-      const newEnd = new Date(p.endDate);
-      newEnd.setHours(0, 0, 0, 0);
+      const newStartMs = parseDateTime(p.deliveryDate || p.startDate, p.deliveryTime, 0, 0);
+      const newEndMs = parseDateTime(p.endDate, p.endTime, 23, 59);
 
       const overlappingRentals = rentals.filter((r) => {
         if (r.billNo && r.billNo === form.billNo) return false;
         if (currentRentalIds.includes(r.id)) return false;
-        if (r.itemId !== p.itemId) return false;
+        const rItemId = r.itemId || r.item?.customId || (typeof r.item === "string" ? r.item : "");
+        const matchItem =
+          rItemId === p.itemId ||
+          rItemId === p.itemNo ||
+          (p.item?._id && (rItemId === p.item._id || rItemId === String(p.item._id))) ||
+          (r.item && (
+            r.item === p.itemId ||
+            r.item === p.itemNo ||
+            r.item.customId === p.itemId ||
+            r.item.customId === p.itemNo
+          ));
+        if (!matchItem) return false;
         if (r.status === "returned") return false;
 
-        const existingStart = new Date(r.startDate || r.deliveryDate || "");
-        existingStart.setHours(0, 0, 0, 0);
-        const existingEnd = new Date(r.endDate || "");
-        existingEnd.setHours(0, 0, 0, 0);
+        const existingStartMs = parseDateTime(r.startDate || r.deliveryDate || "", r.deliveryTime, 0, 0);
+        const existingEndMs = parseDateTime(r.endDate || "", r.endTime, 23, 59);
 
-        return newStart.getTime() <= existingEnd.getTime() && newEnd.getTime() >= existingStart.getTime();
+        if (isNaN(newStartMs) || isNaN(newEndMs) || isNaN(existingStartMs) || isNaN(existingEndMs)) return false;
+
+        return newStartMs < existingEndMs && newEndMs > existingStartMs;
+      });
+
+      console.log("[EditRentalDialog] Overlap check for piece:", {
+        itemNo: p.itemNo,
+        newStartMs,
+        newEndMs,
+        overlappingCount: overlappingRentals.length,
       });
 
       if (isSafaItem(p.item)) {
@@ -929,6 +1022,7 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
       const deletedRentalIds = originalRentalIds.filter((id) => !remainingRentalIds.includes(id));
 
       if (deletedRentalIds.length > 0) {
+        console.log("[EditRentalDialog] Deleting removed pieces:", deletedRentalIds);
         await Promise.all(deletedRentalIds.map((delId) => deleteRental(delId)));
       }
 
@@ -979,6 +1073,8 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
           subcategory: (p.item as any)?.subcategory || "Uncategorized",
         };
 
+        console.log("[EditRentalDialog] Saving piece payload:", { rentalId: p.rentalId, payload });
+
         if (p.rentalId) {
           const updated = await updateRental(p.rentalId, payload);
           if (p.item && isSafaItem(p.item)) {
@@ -1002,12 +1098,13 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
         }
       });
 
-      await Promise.all(updatePromises);
+      const results = await Promise.all(updatePromises);
+      console.log("[EditRentalDialog] Successfully updated all rental pieces:", results);
 
       toast.success(`Rental bill ${form.billNo || rental.id} updated successfully`);
       setOpen(false);
     } catch (err) {
-      console.error(err);
+      console.error("[EditRentalDialog] Error updating rental:", err);
       toast.error(`Failed to update rental ${rental.id}`);
     } finally {
       setLoading(false);

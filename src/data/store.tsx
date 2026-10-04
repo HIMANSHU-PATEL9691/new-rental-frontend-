@@ -418,11 +418,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           idbSet("cozy_rentals", next);
           return next;
         });
+        if (newRental.item && typeof newRental.item === "object") {
+          const transformedItem = transformItem(newRental.item);
+          setItems((prev) => {
+            const next = prev.map((item) => (item.id === transformedItem.id || item.customId === transformedItem.id ? transformedItem : item));
+            idbSet("cozy_items", next);
+            return next;
+          });
+        }
         console.info("[store] addRental state updated", transformed);
         return transformed;
       },
       deleteRental: async (id) => {
         console.info("[store] deleteRental started", { id });
+        const targetRental = rentals.find((r) => r.id === id || r.customId === id);
         await rentalsApi.delete(id);
         console.info("[store] deleteRental backend success", { id });
         setRentals((prev) => {
@@ -430,6 +439,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           idbSet("cozy_rentals", next);
           return next;
         });
+        if (targetRental?.itemId) {
+          setItems((prev) => {
+            const next = prev.map((item) => {
+              if (item.id === targetRental.itemId || item.customId === targetRental.itemId) {
+                return { ...item, status: "available" as const };
+              }
+              return item;
+            });
+            idbSet("cozy_items", next);
+            return next;
+          });
+        }
         console.info("[store] deleteRental state updated", { id });
       },
       updateItem: async (id, data) => {
@@ -454,6 +475,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           idbSet("cozy_rentals", next);
           return next;
         });
+        if (updated.item && typeof updated.item === "object") {
+          const transformedItem = transformItem(updated.item);
+          setItems((prev) => {
+            const next = prev.map((item) => (item.id === transformedItem.id || item.customId === transformedItem.id ? transformedItem : item));
+            idbSet("cozy_items", next);
+            return next;
+          });
+        } else if (data.status === "returned" && transformed.itemId) {
+          setItems((prev) => {
+            const next = prev.map((item) => {
+              if (item.id === transformed.itemId || item.customId === transformed.itemId) {
+                return { ...item, status: "available" as const };
+              }
+              return item;
+            });
+            idbSet("cozy_items", next);
+            return next;
+          });
+        }
         return transformed;
       },
       getItem: (id) => (id ? (itemMap.get(id) || items.find((i) => i.id === id || i.customId === id)) : undefined),

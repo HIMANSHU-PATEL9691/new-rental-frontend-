@@ -176,7 +176,9 @@ export function ViewInvoiceDialog({
 
   const billMakingDate = (rental as any).billMakingDate
     ? new Date((rental as any).billMakingDate).toLocaleDateString("en-IN")
-    : "-";
+    : (rental as any).createdAt
+    ? new Date((rental as any).createdAt).toLocaleDateString("en-IN")
+    : new Date().toLocaleDateString("en-IN");
 
   const getInvoiceTitle = (status: string) => {
     const s = (status || "").toLowerCase();

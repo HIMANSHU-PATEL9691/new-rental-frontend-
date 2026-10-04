@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { z } from "zod";
 import { toast } from "sonner";
 
@@ -115,33 +115,88 @@ export function EditPieceDialog({
     images: ((item as any).images ?? (item.image ? [item.image] : [])) as string[],
   });
 
-  const defaultForm = useMemo(() => {
-    return {
-      customId: item.customId ?? "",
-      name: item.name ?? "",
-      designer: item.designer ?? "",
-      category: item.category ?? CATEGORIES.WOMENS,
-      subcategory:
-        item.subcategory ??
-        SUBCATEGORY_BY_CATEGORY[
-          item.category as keyof typeof SUBCATEGORY_BY_CATEGORY
-        ]?.[0] ??
-        "",
-      size: item.size ?? "M",
-      color: item.color ?? "",
-      pricePerDay: item.pricePerDay ?? 0,
-      retailValue: item.retailValue ?? 0,
-      quantity: (item as any).quantity ?? 1,
-      status: (item.status ?? "available") as ItemStatus,
-      images: ((item as any).images ?? (item.image ? [item.image] : [])) as string[],
-    };
-  }, [item]);
+  // Keep form in sync when item changes or dialog opens
+  useEffect(() => {
+    if (open && item) {
+      setForm({
+        customId: item.customId ?? "",
+        name: item.name ?? "",
+        designer: item.designer ?? "",
+        category: item.category ?? CATEGORIES.WOMENS,
+        subcategory:
+          item.subcategory ??
+          SUBCATEGORY_BY_CATEGORY[
+            item.category as keyof typeof SUBCATEGORY_BY_CATEGORY
+          ]?.[0] ??
+          "",
+        size: item.size ?? "M",
+        color: item.color ?? "",
+        pricePerDay: item.pricePerDay ?? 0,
+        retailValue: item.retailValue ?? 0,
+        quantity: (item as any).quantity ?? 1,
+        status: (item.status ?? "available") as ItemStatus,
+        images: ((item as any).images ?? (item.image ? [item.image] : [])) as string[],
+      });
+    }
+  }, [open, item]);
 
-  // keep form in sync when item changes (e.g. rerender)
-  useMemo(() => {
-    if (!open) setForm(defaultForm);
-    return null;
-  }, [open, defaultForm]);
+  async function compressImage(
+    file: File,
+    maxWidth = 800,
+    maxHeight = 800,
+    quality = 0.7
+  ): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = img.width;
+          let height = img.height;
+          if (width > maxWidth || height > maxHeight) {
+            if (width / height > maxWidth / maxHeight) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            } else {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return reject(new Error("Canvas context is null"));
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) return reject(new Error("Compression failed"));
+              const reader2 = new FileReader();
+              reader2.onloadend = () => {
+                if (typeof reader2.result === "string") {
+                  resolve(reader2.result);
+                } else {
+                  reject(new Error("Result is not a string"));
+                }
+              };
+              reader2.onerror = reject;
+              reader2.readAsDataURL(blob);
+            },
+            "image/jpeg",
+            quality
+          );
+        };
+        img.onerror = reject;
+        if (e && e.target && typeof e.target.result === "string") {
+          img.src = e.target.result;
+        } else {
+          reject(new Error("FileReader result is not a string"));
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
 
   async function handleImagesUpload(files: FileList | null) {
     if (!files) return;
@@ -151,23 +206,13 @@ export function EditPieceDialog({
         continue;
       }
       try {
-        const uploaded = await itemsApi.uploadImage(file);
-        if (uploaded && uploaded.url) {
-          setForm((c) => ({ ...c, images: [...c.images, uploaded.url] }));
-          toast.success(`Uploaded ${file.name}`);
-          continue;
-        }
-      } catch (e) {
-        console.warn("Server upload failed, converting to base64 fallback", e);
+        const compressedBase64 = await compressImage(file);
+        setForm((c) => ({ ...c, images: [...c.images, compressedBase64] }));
+        toast.success(`Image added`);
+      } catch (err) {
+        console.error("Failed to process image", err);
+        toast.error(`Failed to process ${file.name}`);
       }
-
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === "string") {
-          setForm((c) => ({ ...c, images: [...c.images, reader.result as string] }));
-        }
-      };
-      reader.readAsDataURL(file);
     }
   }
 
@@ -187,9 +232,10 @@ export function EditPieceDialog({
         images: parsed.data.images || [],
       };
 
-      const updated = await updateItem(item.id, payload as any);
+      const targetId = item.customId || item.id || (item as any)._id;
+      const updated = await updateItem(targetId, payload as any);
       onUpdated?.(updated);
-      toast.success(`${updated.name} updated`);
+      toast.success(`${updated.name} updated successfully`);
       setOpen(false);
     } catch (err) {
       console.error(err);

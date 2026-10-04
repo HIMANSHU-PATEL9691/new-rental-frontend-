@@ -121,7 +121,7 @@ export function getInvoiceContent({
               })()}
             </h2>
             <p># ${form.billNo || "DRAFT"}</p>
-            <p>Date: ${form.billMakingDate ? new Date(form.billMakingDate).toLocaleDateString('en-IN') : "-"}</p>
+            <p>Date: ${form?.billMakingDate ? new Date(form.billMakingDate).toLocaleDateString('en-IN') : (form as any)?.createdAt ? new Date((form as any).createdAt).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN')}</p>
 
           </div>
         </div>

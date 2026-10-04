@@ -85,37 +85,99 @@ function getTimePeriod(timeStr: string) {
   return "Night";
 }
 
+function parseDateTime(dateVal: any, timeStr?: string, defaultHour = 0, defaultMin = 0): number {
+  if (!dateVal) return NaN;
+  let year: number, month: number, day: number;
+
+  if (typeof dateVal === "string" && /^\d{4}-\d{2}-\d{2}/.test(dateVal)) {
+    const [y, m, d] = dateVal.slice(0, 10).split("-").map(Number);
+    year = y;
+    month = m - 1;
+    day = d;
+  } else if (typeof dateVal === "string" && /^\d{2}\/\d{2}\/\d{4}/.test(dateVal)) {
+    const [d, m, y] = dateVal.slice(0, 10).split("/").map(Number);
+    year = y;
+    month = m - 1;
+    day = d;
+  } else {
+    const dObj = new Date(dateVal);
+    if (isNaN(dObj.getTime())) return NaN;
+    year = dObj.getFullYear();
+    month = dObj.getMonth();
+    day = dObj.getDate();
+  }
+
+  let hours = defaultHour;
+  let minutes = defaultMin;
+
+  if (timeStr && typeof timeStr === "string" && timeStr.trim()) {
+    const cleanTime = timeStr.trim().toLowerCase();
+    const isPM = cleanTime.includes("pm");
+    const isAM = cleanTime.includes("am");
+    const digitsOnly = cleanTime.replace(/[^0-9:]/g, "");
+    const timeParts = digitsOnly.split(":");
+    if (timeParts.length >= 2) {
+      let h = parseInt(timeParts[0], 10);
+      let m = parseInt(timeParts[1], 10);
+      if (!isNaN(h) && !isNaN(m)) {
+        if (isPM && h < 12) h += 12;
+        if (isAM && h === 12) h = 0;
+        hours = h;
+        minutes = m;
+      }
+    } else if (timeParts.length === 1 && timeParts[0]) {
+      let h = parseInt(timeParts[0], 10);
+      if (!isNaN(h)) {
+        if (isPM && h < 12) h += 12;
+        if (isAM && h === 12) h = 0;
+        hours = h;
+      }
+    }
+  }
+
+  return new Date(year, month, day, hours, minutes, 0, 0).getTime();
+}
+
 function getItemConflict(
   item: any,
   deliveryDate: string,
   endDate: string,
   allRentals: any[],
   currentPieces: any[] = [],
-  currentPieceIndex: number = -1
+  currentPieceIndex: number = -1,
+  deliveryTime = "10:00",
+  endTime = "10:00"
 ) {
   if (!item) return { isBooked: false, details: "Available" };
 
-  const start = new Date(deliveryDate || today());
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(endDate || deliveryDate || today());
-  end.setHours(0, 0, 0, 0);
+  const startMs = parseDateTime(deliveryDate || today(), deliveryTime, 0, 0);
+  const endMs = parseDateTime(endDate || deliveryDate || today(), endTime, 23, 59);
 
   const isSafa = isSafaItem(item);
 
-  // Check if another piece in the current form has already selected this piece
+  // Check if another piece in the current form has already selected this piece at overlapping times
   let currentBillBookedQty = 0;
   let currentBillSelected = false;
   currentPieces.forEach((p, idx) => {
     if (idx !== currentPieceIndex && (p.itemId === item.id || p.itemId === item.customId)) {
-      currentBillSelected = true;
-      currentBillBookedQty += Number(p.quantity) || 1;
+      const pStart = parseDateTime(p.deliveryDate || today(), p.deliveryTime, 0, 0);
+      const pEnd = parseDateTime(p.endDate || p.deliveryDate || today(), p.endTime, 23, 59);
+      if (!isNaN(pStart) && !isNaN(pEnd) && !isNaN(startMs) && !isNaN(endMs)) {
+        if (startMs < pEnd && endMs > pStart) {
+          currentBillSelected = true;
+          currentBillBookedQty += Number(p.quantity) || 1;
+        }
+      } else {
+        currentBillSelected = true;
+        currentBillBookedQty += Number(p.quantity) || 1;
+      }
     }
   });
 
   if (!isSafa && currentBillSelected) {
     return {
       isBooked: true,
-      details: "Already selected in this bill",
+      details: "Already selected in this bill for overlapping time",
     };
   }
 
@@ -123,17 +185,27 @@ function getItemConflict(
   const overlapping = allRentals.filter((r) => {
     if (!r) return false;
     const rItemId = r.itemId || r.item?.customId || (typeof r.item === "string" ? r.item : "");
-    if (rItemId !== item.id && rItemId !== item.customId) return false;
+    const matchItem =
+      rItemId === item.id ||
+      rItemId === item.customId ||
+      (item._id && (rItemId === item._id || rItemId === String(item._id))) ||
+      (r.item && (
+        r.item === item.id ||
+        r.item === item.customId ||
+        r.item.customId === item.id ||
+        r.item.customId === item.customId ||
+        (item._id && String(r.item._id || r.item.id) === String(item._id))
+      ));
+    if (!matchItem) return false;
     if (r.status === "returned") return false;
 
-    const rStart = new Date(r.startDate || r.deliveryDate || "");
-    rStart.setHours(0, 0, 0, 0);
-    const rEnd = new Date(r.endDate || "");
-    rEnd.setHours(0, 0, 0, 0);
+    const rStartMs = parseDateTime(r.startDate || r.deliveryDate || "", r.deliveryTime, 0, 0);
+    const rEndMs = parseDateTime(r.endDate || "", r.endTime, 23, 59);
 
-    if (isNaN(rStart.getTime()) || isNaN(rEnd.getTime())) return false;
+    if (isNaN(rStartMs) || isNaN(rEndMs) || isNaN(startMs) || isNaN(endMs)) return false;
 
-    return start.getTime() <= rEnd.getTime() && end.getTime() >= rStart.getTime();
+    // True datetime interval overlap condition: start < rEnd && end > rStart
+    return startMs < rEndMs && endMs > rStartMs;
   });
 
   if (isSafa) {
@@ -152,9 +224,11 @@ function getItemConflict(
     const first = overlapping[0];
     const sStr = formatDate(first.startDate || first.deliveryDate);
     const eStr = formatDate(first.endDate);
+    const sTime = first.deliveryTime ? ` ${first.deliveryTime}` : "";
+    const eTime = first.endTime ? ` ${first.endTime}` : "";
     return {
       isBooked: true,
-      details: `Booked (${sStr} to ${eStr})`,
+      details: `Booked (${sStr}${sTime} to ${eStr}${eTime})`,
       rental: first,
     };
   }
@@ -192,6 +266,7 @@ export function NewRentalDialog({
     securityAmount: 0,
     signature: "",
     status: "upcoming" as RentalStatus,
+    billMakingDate: today(),
     pieces: [
       {
         id: Math.random().toString(),
@@ -451,7 +526,7 @@ export function NewRentalDialog({
       p.itemNo = item.customId || item.id;
 
       // Check booking conflict for the piece's delivery and return dates
-      const conflict = getItemConflict(item, p.deliveryDate, p.endDate, rentals, form.pieces, i);
+      const conflict = getItemConflict(item, p.deliveryDate, p.endDate, rentals, form.pieces, i, p.deliveryTime, p.endTime);
       if (conflict.isBooked) {
         toast.error(`Cannot make bill: "${item.name}" (${p.itemNo}) is already booked for selected dates (${conflict.details})!`);
         return;
@@ -508,6 +583,7 @@ export function NewRentalDialog({
           signature: parsed.data.signature || "",
           // force 'upcoming' so we don't create status-specific bills
           status: "upcoming",
+          billMakingDate: (form as any).billMakingDate || today(),
           rate: p.rate,
           quantity: p.quantity,
           lostQuantity: 0,
@@ -543,6 +619,7 @@ export function NewRentalDialog({
         securityAmount: 0,
         signature: "",
         status: "upcoming",
+        billMakingDate: today(),
         pieces: [
           {
             id: Math.random().toString(),
@@ -699,7 +776,7 @@ export function NewRentalDialog({
               {form.pieces.map((piece, index) => {
                 const selectedItem = items.find((i) => i.id === piece.itemId);
                 const selectedConflict = selectedItem
-                  ? getItemConflict(selectedItem, piece.deliveryDate, piece.endDate, rentals, form.pieces, index)
+                  ? getItemConflict(selectedItem, piece.deliveryDate, piece.endDate, rentals, form.pieces, index, piece.deliveryTime, piece.endTime)
                   : null;
 
                 // Status for itemNo input
@@ -709,7 +786,7 @@ export function NewRentalDialog({
                   if (!found) {
                     itemNoStatus = { type: "error", text: "❌ Not in inventory" };
                   } else {
-                    const conflict = getItemConflict(found, piece.deliveryDate, piece.endDate, rentals, form.pieces, index);
+                    const conflict = getItemConflict(found, piece.deliveryDate, piece.endDate, rentals, form.pieces, index, piece.deliveryTime, piece.endTime);
                     if (conflict.isBooked) {
                       itemNoStatus = { type: "error", text: `🚫 Booked (${conflict.details})` };
                     } else {
@@ -753,7 +830,7 @@ export function NewRentalDialog({
                             const item = items.find((i) => i.id === v);
                             if (!item) return;
 
-                            const conflict = getItemConflict(item, piece.deliveryDate, piece.endDate, rentals, form.pieces, index);
+                            const conflict = getItemConflict(item, piece.deliveryDate, piece.endDate, rentals, form.pieces, index, piece.deliveryTime, piece.endTime);
                             if (conflict.isBooked) {
                               toast.error(`"${item.name}" is already booked for these dates (${conflict.details})!`);
                               return;
@@ -779,7 +856,7 @@ export function NewRentalDialog({
                             {(() => {
                               const processed = items.map((i) => ({
                                 item: i,
-                                conflict: getItemConflict(i, piece.deliveryDate, piece.endDate, rentals, form.pieces, index),
+                                conflict: getItemConflict(i, piece.deliveryDate, piece.endDate, rentals, form.pieces, index, piece.deliveryTime, piece.endTime),
                               }));
 
                               const filtered = hideBooked
@@ -854,7 +931,7 @@ export function NewRentalDialog({
                                 return { ...f, pieces: newPieces };
                               }
 
-                              const conflict = getItemConflict(found, piece.deliveryDate, piece.endDate, rentals, f.pieces, index);
+                              const conflict = getItemConflict(found, piece.deliveryDate, piece.endDate, rentals, f.pieces, index, piece.deliveryTime, piece.endTime);
                               if (conflict.isBooked) {
                                 // Booked! Clear itemId so it cannot be billed!
                                 newPieces[index] = { ...newPieces[index], itemNo, itemId: "" };
@@ -885,7 +962,7 @@ export function NewRentalDialog({
                               });
                               return;
                             }
-                            const conflict = getItemConflict(found, piece.deliveryDate, piece.endDate, rentals, form.pieces, index);
+                            const conflict = getItemConflict(found, piece.deliveryDate, piece.endDate, rentals, form.pieces, index, piece.deliveryTime, piece.endTime);
                             if (conflict.isBooked) {
                               toast.error(`"${found.name}" is already booked for these dates (${conflict.details})!`);
                               setForm((f) => {
