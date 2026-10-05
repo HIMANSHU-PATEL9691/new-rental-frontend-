@@ -237,9 +237,9 @@ export function EditPieceDialog({
       onUpdated?.(updated);
       toast.success(`${updated.name} updated successfully`);
       setOpen(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.error("Failed to update item");
+      toast.error(err?.message || "Failed to update item");
     } finally {
       setLoading(false);
     }

@@ -82,6 +82,8 @@ export interface Rental {
   customId: string;
   itemId: string;
   itemNo: string;
+  item?: Item | any;
+  customer?: Customer | any;
   billNo: string;
   address: string;
   customerId: string;

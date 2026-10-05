@@ -198,21 +198,13 @@ export function AddPieceDialog({
         continue;
       }
       try {
-        const uploaded = await itemsApi.uploadImage(file);
-        if (uploaded && uploaded.url) {
-          setForm((current) => ({ ...current, images: [...current.images, uploaded.url] }));
-          toast.success(`Uploaded ${file.name}`);
-          continue;
+        const compressedBase64 = await compressImage(file, 1000, 1000, 0.75);
+        if (typeof compressedBase64 === "string") {
+          setForm((current) => ({ ...current, images: [...current.images, compressedBase64] }));
+          toast.success(`Image added`);
         }
       } catch (err) {
-        console.warn("Server upload failed, compressing as data URL fallback", err);
-      }
-      try {
-        const compressed = await compressImage(file);
-        if (typeof compressed === 'string') {
-          setForm((current) => ({ ...current, images: [...current.images, compressed] }));
-        }
-      } catch (err) {
+        console.error("Failed to compress image", err);
         toast.error(`Could not process image file ${file.name}`);
       }
     }
@@ -251,9 +243,9 @@ export function AddPieceDialog({
       toast.success(`Added ${item.name} to the vault`);
       reset();
       setOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("[AddPieceDialog] addItem failed", error);
-      toast.error("Failed to add item");
+      toast.error(error?.message || "Failed to add item");
     } finally {
       setLoading(false);
       console.info("[AddPieceDialog] submit finished");

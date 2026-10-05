@@ -45,6 +45,8 @@ export interface Rental {
   id: string;
   itemId: string;
   itemNo: string;
+  item?: Item | any;
+  customer?: Customer | any;
   billNo: string;
   address: string;
   customerId: string;
