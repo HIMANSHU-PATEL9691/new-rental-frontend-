@@ -191,24 +191,37 @@ export function AddPieceDialog({
   }
 
   async function handleImagesUpload(files: FileList | null) {
-    if (!files) return;
+    if (!files || files.length === 0) return;
     for (const file of Array.from(files)) {
       if (!file.type.startsWith("image/")) {
         toast.error(`File ${file.name} is not an image`);
         continue;
       }
+      const toastId = toast.loading(`Uploading ${file.name} to Cloudinary...`);
+      try {
+        const uploadRes = await itemsApi.uploadImage(file);
+        if (uploadRes?.url) {
+          setForm((current) => ({ ...current, images: [...current.images, uploadRes.url] }));
+          toast.success(`Image uploaded to Cloudinary`, { id: toastId });
+          continue;
+        }
+      } catch (uploadErr) {
+        console.warn("[AddPieceDialog] Cloudinary direct upload failed, trying compressed fallback", uploadErr);
+      }
+
       try {
         const compressedBase64 = await compressImage(file, 1000, 1000, 0.75);
         if (typeof compressedBase64 === "string") {
           setForm((current) => ({ ...current, images: [...current.images, compressedBase64] }));
-          toast.success(`Image added`);
+          toast.success(`Image added`, { id: toastId });
         }
       } catch (err) {
         console.error("Failed to compress image", err);
-        toast.error(`Could not process image file ${file.name}`);
+        toast.error(`Could not process image file ${file.name}`, { id: toastId });
       }
     }
   }
+
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

@@ -29,6 +29,7 @@ import { useStore } from "@/data/store";
 import { formatCurrencyINR } from "@/lib/utils";
 
 import type { Rental, RentalStatus } from "@/data/mock";
+import { formatImageUrl } from "@/lib/api";
 import { AddCustomerDialog } from "./AddCustomerDialog";
 import { AddPieceDialog } from "./AddPieceDialog";
 
@@ -477,7 +478,7 @@ export function EditRentalDialog({
           rQuantity,
           rLostQuantity,
         }) => `
-      ${rItem?.image ? `<div style="text-align: center; margin-bottom: 6px;"><img src="${rItem.image}" style="max-height: 80px; max-width: 100%; border-radius: 4px; object-fit: cover;" /></div>` : ""}
+      ${rItem?.image ? `<div style="text-align: center; margin-bottom: 6px;"><img src="${formatImageUrl(rItem.image)}" style="max-height: 80px; max-width: 100%; border-radius: 4px; object-fit: cover;" /></div>` : ""}
       <div class="thermal-item-name">${rItem?.name || "Unknown item"}</div>
       <div class="thermal-row"><span>Item No</span><span>${r.itemNo || r.itemId}</span></div>
       <div class="thermal-row"><span>Dates</span><span>Del: ${formatDate(rDeliveryDate.slice(0, 10))}${rDeliveryTime ? ` ${rDeliveryTime}` : ""}${rDeliveryTimePeriod ? ` (${rDeliveryTimePeriod})` : ""} | Return: ${formatDate(rEndDate.slice(0, 10))}${rEndTime ? ` ${rEndTime}` : ""}${rEndTimePeriod ? ` (${rEndTimePeriod})` : ""}</span></div>
@@ -690,7 +691,7 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
           rLostQuantity,
         }) => `
       <tr>
-        <td>${rItem?.image ? `<img src="${rItem.image}" style="width: 35px; height: 45px; object-fit: cover; border-radius: 3px;" />` : ""}</td>
+        <td>${rItem?.image ? `<img src="${formatImageUrl(rItem.image)}" style="width: 35px; height: 45px; object-fit: cover; border-radius: 3px;" />` : ""}</td>
         <td><strong>${rItem?.name || "Unknown item"}</strong><br/><span style="font-size: 9px; color: #666;">Qty: ${rQuantity}${rLostQuantity > 0 ? ` | Lost: ${rLostQuantity}` : ""} | Del: ${formatDate(rDeliveryDate.slice(0, 10))}${rDeliveryTime ? ` ${rDeliveryTime}` : ""}${rDeliveryTimePeriod ? ` (${rDeliveryTimePeriod})` : ""} | Return: ${formatDate(rEndDate.slice(0, 10))}${rEndTime ? ` ${rEndTime}` : ""}${rEndTimePeriod ? ` (${rEndTimePeriod})` : ""}</span></td>
         <td>${r.itemNo || r.itemId}</td>
         <td class="text-right">${formatCurrencyINR(rRate)}</td>

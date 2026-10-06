@@ -199,22 +199,35 @@ export function EditPieceDialog({
   }
 
   async function handleImagesUpload(files: FileList | null) {
-    if (!files) return;
+    if (!files || files.length === 0) return;
     for (const file of Array.from(files)) {
       if (!file.type.startsWith("image/")) {
         toast.error(`File ${file.name} is not an image`);
         continue;
       }
+      const toastId = toast.loading(`Uploading ${file.name} to Cloudinary...`);
+      try {
+        const uploadRes = await itemsApi.uploadImage(file);
+        if (uploadRes?.url) {
+          setForm((c) => ({ ...c, images: [...c.images, uploadRes.url] }));
+          toast.success(`Image uploaded to Cloudinary`, { id: toastId });
+          continue;
+        }
+      } catch (uploadErr) {
+        console.warn("[EditPieceDialog] Cloudinary direct upload failed, trying compressed fallback", uploadErr);
+      }
+
       try {
         const compressedBase64 = await compressImage(file);
         setForm((c) => ({ ...c, images: [...c.images, compressedBase64] }));
-        toast.success(`Image added`);
+        toast.success(`Image added`, { id: toastId });
       } catch (err) {
         console.error("Failed to process image", err);
-        toast.error(`Failed to process ${file.name}`);
+        toast.error(`Failed to process ${file.name}`, { id: toastId });
       }
     }
   }
+
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
