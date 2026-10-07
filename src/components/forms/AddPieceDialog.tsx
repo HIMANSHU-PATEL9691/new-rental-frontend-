@@ -88,7 +88,7 @@ export function AddPieceDialog({
   const defaultCategory = categoryOptions[0] ?? CATEGORIES.WOMENS;
   const defaultSubcategory = (categorySubcategoryMap as Record<string, string[]>)[defaultCategory]?.[0] ?? "";
 
-  const { addItem } = useStore();
+  const { addItem, items, selectedBranch } = useStore();
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = open !== undefined;
   const isOpen = isControlled ? open : internalOpen;
@@ -243,6 +243,16 @@ export function AddPieceDialog({
       toast.error(parsed.error.issues[0]?.message ?? "Invalid input");
       return;
     }
+
+    const trimmedCustomId = parsed.data.customId.trim().toLowerCase();
+    const isDuplicate = items.some(
+      (item) => (item.customId || item.id || "").trim().toLowerCase() === trimmedCustomId
+    );
+    if (isDuplicate) {
+      toast.error(`Item No "${parsed.data.customId}" already exists in ${selectedBranch || 'this shop'}. Please use a unique Item No.`);
+      return;
+    }
+
     setLoading(true);
     try {
       console.info("[AddPieceDialog] calling addItem");
@@ -251,6 +261,7 @@ export function AddPieceDialog({
         retailValue: parsed.data.retailValue ?? 0,
         image: parsed.data.images?.[0] || FALLBACK_IMG,
         images: parsed.data.images || [],
+        branch: selectedBranch || 'Shop 1',
       } as any);
       console.info("[AddPieceDialog] addItem success", item);
       toast.success(`Added ${item.name} to the vault`);
@@ -287,7 +298,23 @@ export function AddPieceDialog({
                   placeholder="e.g. VV-1234"
                   maxLength={40}
                   required
+                  className={
+                    form.customId.trim() &&
+                    items.some(
+                      (item) => (item.customId || item.id || "").trim().toLowerCase() === form.customId.trim().toLowerCase()
+                    )
+                      ? "border-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
                 />
+                {form.customId.trim() &&
+                  items.some(
+                    (item) => (item.customId || item.id || "").trim().toLowerCase() === form.customId.trim().toLowerCase()
+                  ) && (
+                    <p className="text-xs text-destructive">
+                      This Item No already exists in {selectedBranch || 'this shop'}.
+                    </p>
+                  )}
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="name">Name</Label>

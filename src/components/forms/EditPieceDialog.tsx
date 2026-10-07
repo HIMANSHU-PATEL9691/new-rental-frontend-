@@ -241,6 +241,7 @@ export function EditPieceDialog({
     try {
       const payload = {
         ...parsed.data,
+        branch: item.branch,
         image: parsed.data.images?.[0] || "",
         images: parsed.data.images || [],
       };
