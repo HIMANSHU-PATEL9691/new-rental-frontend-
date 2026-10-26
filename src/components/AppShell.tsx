@@ -325,8 +325,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               />
             </div>
 
-            {/* Active Shop Display / Selector (Dropdown for Admin, Static Badge for Staff) */}
-            {role === "admin" ? (
+            {/* Active Shop Display / Selector (Dropdown for Admin & Reception, Static Badge for Staff) */}
+            {role === "admin" || role === "reception" ? (
               <Select value={selectedBranch || "Shop 1"} onValueChange={(val) => setSelectedBranch(val)}>
                 <SelectTrigger className="w-24 sm:w-28 h-8 sm:h-9 border-gold/40 bg-gold/10 text-gold font-semibold text-[11px] sm:text-xs rounded-md shadow-sm focus:ring-gold/40 gap-1 px-2 shrink-0">
                   <Building2 className="h-3.5 w-3.5 shrink-0 text-gold" />
