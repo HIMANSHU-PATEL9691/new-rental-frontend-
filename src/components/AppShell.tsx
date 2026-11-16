@@ -58,17 +58,17 @@ const DEFAULT_SUBCATEGORY_BY_CATEGORY = {
 };
 
 const nav = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true, roles: ["admin"] },
-  { to: "/inventory", label: "Inventory", icon: Shirt, exact: false, roles: ["admin", "employee", "reception"] },
-  { to: "/rentals", label: "Rentals", icon: ClipboardList, exact: false, roles: ["admin", "reception"] },
-  { to: "/customers", label: "Customers", icon: Users, exact: false, roles: ["admin", "reception"] },
-  { to: "/availability", label: "Availability", icon: CalendarCheck, exact: false, roles: ["admin", "employee", "reception"] },
-  { to: "/deliveries", label: "Deliveries", icon: Package, exact: false, roles: ["admin", "employee", "reception"] },
-  { to: "/return-items", label: "Return Items", icon: Clock, exact: false, roles: ["admin", "reception"] },
-  { to: "/calendar", label: "Calendar", icon: CalendarDays, exact: false, roles: ["admin", "employee", "reception"] },
-  { to: "/reports", label: "Reports", icon: FileText, exact: false, roles: ["admin"] },
-  { to: "/settings", label: "Settings", icon: Settings, exact: false, roles: ["admin", "reception", "employee"] },
-  { to: "/approvals", label: "Approvals", icon: Users, exact: false, roles: ["admin"] },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true, roles: ["admin", "superadmin", "super_admin"] },
+  { to: "/inventory", label: "Inventory", icon: Shirt, exact: false, roles: ["admin", "superadmin", "super_admin", "employee", "reception"] },
+  { to: "/rentals", label: "Rentals", icon: ClipboardList, exact: false, roles: ["admin", "superadmin", "super_admin", "reception", "employee"] },
+  { to: "/customers", label: "Customers", icon: Users, exact: false, roles: ["admin", "superadmin", "super_admin", "reception", "employee"] },
+  { to: "/availability", label: "Availability", icon: CalendarCheck, exact: false, roles: ["admin", "superadmin", "super_admin", "employee", "reception"] },
+  { to: "/deliveries", label: "Deliveries", icon: Package, exact: false, roles: ["admin", "superadmin", "super_admin", "employee", "reception"] },
+  { to: "/return-items", label: "Return Items", icon: Clock, exact: false, roles: ["admin", "superadmin", "super_admin", "reception"] },
+  { to: "/calendar", label: "Calendar", icon: CalendarDays, exact: false, roles: ["admin", "superadmin", "super_admin", "employee", "reception"] },
+  { to: "/reports", label: "Reports", icon: FileText, exact: false, roles: ["admin", "superadmin", "super_admin"] },
+  { to: "/settings", label: "Settings", icon: Settings, exact: false, roles: ["admin", "superadmin", "super_admin", "reception", "employee"] },
+  { to: "/approvals", label: "Approvals", icon: Users, exact: false, roles: ["admin", "superadmin", "super_admin"] },
 ] as const;
 
 
@@ -233,7 +233,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="hairline mx-6 shrink-0" />
         <NavList pathname={pathname} role={role} />
         
-        {(role === "admin" || role === "reception") && (
+        {(["admin", "superadmin", "super_admin", "reception"].includes(role)) && (
           <div className="mx-6 mb-5 rounded-md border border-sidebar-border bg-sidebar-accent p-4 shrink-0">
             <p className="eyebrow">Today</p>
             <p className="mt-2 font-display text-2xl">{todaysFittings} fitting{todaysFittings !== 1 ? 's' : ''}</p>
@@ -398,7 +398,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   }
                 />
               )}
-              {(role === "admin" || role === "reception") && (
+              {(["admin", "superadmin", "super_admin", "reception"].includes(role)) && (
                 <NewRentalDialog
                   trigger={
                     <Button
@@ -411,7 +411,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   }
                 />
               )}
-              {(role === "admin" || role === "reception") && (
+              {(["admin", "superadmin", "super_admin", "reception"].includes(role)) && (
                 <NewRentalDialog
                   trigger={
                     <Button className="hidden bg-gold text-gold-foreground shadow-glow hover:bg-gold/90 sm:inline-flex">

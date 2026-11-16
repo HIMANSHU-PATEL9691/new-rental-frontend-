@@ -122,7 +122,7 @@ export default function ReportsPage() {
     
     if (!savedRole) {
       navigate({ to: "/login" });
-    } else if (savedRole !== "admin") {
+    } else if (!["admin", "superadmin", "super_admin"].includes(savedRole)) {
       navigate({ to: "/availability" });
     }
   }, []);

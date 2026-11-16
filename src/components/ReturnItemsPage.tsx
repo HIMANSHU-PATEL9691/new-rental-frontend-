@@ -47,7 +47,7 @@ export function ReturnItemsPage() {
     setRole(localStorage.getItem("user_role")?.trim().toLowerCase() || "");
   }, []);
 
-  const canSeeFinancials = ["admin", "reception"].includes(role);
+  const canSeeFinancials = ["admin", "superadmin", "super_admin"].includes(role);
 
   useEffect(() => {
     const currentStr = today();

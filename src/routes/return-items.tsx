@@ -14,10 +14,10 @@ export default function RouteComponent() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const role = localStorage.getItem("user_role");
+    const role = (localStorage.getItem("user_role") || "").toLowerCase();
     if (!role) {
       navigate({ to: "/login" });
-    } else if (role !== "admin" && role !== "reception") {
+    } else if (!["admin", "superadmin", "super_admin", "reception"].includes(role)) {
       navigate({ to: "/availability" });
     }
   }, []);

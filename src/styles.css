@@ -276,3 +276,13 @@
   color: #C23838;
   border: 1px solid rgba(224, 82, 82, 0.3);
 }
+
+/* Remarks & Multiline Text Wrapping */
+.remarks-text {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-overflow: unset;
+  max-width: 100%;
+  height: auto;
+}

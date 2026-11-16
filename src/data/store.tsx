@@ -167,7 +167,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const role = (window.localStorage.getItem("user_role") || "").trim().toLowerCase();
       const userBranch = window.localStorage.getItem("user_branch");
       const stored = window.localStorage.getItem("selected_branch");
-      const canSwitch = role === "admin" || role === "reception";
+      const canSwitch = ["admin", "superadmin", "super_admin", "reception"].includes(role);
       if (role && !canSwitch) {
         const effective = userBranch || stored || "Shop 1";
         if (userBranch !== effective) window.localStorage.setItem("user_branch", effective);
@@ -183,7 +183,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (typeof window !== "undefined" && window.localStorage) {
       const role = (window.localStorage.getItem("user_role") || "").trim().toLowerCase();
       const userBranch = window.localStorage.getItem("user_branch");
-      const canSwitch = role === "admin" || role === "reception";
+      const canSwitch = ["admin", "superadmin", "super_admin", "reception"].includes(role);
       const effectiveBranch = canSwitch ? branch : (userBranch || branch || "Shop 1");
       window.localStorage.setItem("selected_branch", effectiveBranch);
       if (!canSwitch) {
@@ -277,7 +277,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         const role = (window.localStorage.getItem("user_role") || "").trim().toLowerCase();
         const userBranch = window.localStorage.getItem("user_branch");
         const stored = window.localStorage.getItem("selected_branch");
-        const canSwitch = role === "admin" || role === "reception";
+        const canSwitch = ["admin", "superadmin", "super_admin", "reception"].includes(role);
         const effective = !canSwitch ? (userBranch || stored || "Shop 1") : (stored || "Shop 1");
         if (effective !== selectedBranch) {
           console.info("[store] Syncing selectedBranch from storage:", effective);

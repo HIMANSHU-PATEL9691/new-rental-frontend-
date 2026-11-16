@@ -64,6 +64,9 @@ export function CustomerProfileDialog({
   const [editOpen, setEditOpen] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
+  const userRole = (typeof window !== "undefined" ? localStorage.getItem("user_role") || "" : "").toLowerCase();
+  const canSeeFinancials = ["admin", "superadmin", "super_admin"].includes(userRole);
+
   const isControlled = open !== undefined;
   const isOpen = isControlled ? open : internalOpen;
   const setOpen = isControlled ? onOpenChange! : setInternalOpen;
@@ -158,7 +161,7 @@ export function CustomerProfileDialog({
 
           <div className="p-6 space-y-6">
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className={`grid ${canSeeFinancials ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-2"} gap-3`}>
               <Card className="bg-white border border-slate-200 p-3.5 shadow-2xs">
                 <div className="flex items-center gap-1.5 text-slate-500">
                   <Package className="h-4 w-4 text-amber-600" />
@@ -179,37 +182,41 @@ export function CustomerProfileDialog({
                 </p>
               </Card>
 
-              <Card className="bg-white border border-slate-200 p-3.5 shadow-2xs">
-                <div className="flex items-center gap-1.5 text-slate-500">
-                  <IndianRupee className="h-4 w-4 text-emerald-600" />
-                  <p className="text-xs uppercase tracking-wider font-bold">Total Spent</p>
-                </div>
-                <p className="font-sans text-xl font-extrabold mt-1 text-emerald-700">
-                  {formatCurrencyINR(totalSpent)}
-                </p>
-              </Card>
+              {canSeeFinancials && (
+                <Card className="bg-white border border-slate-200 p-3.5 shadow-2xs">
+                  <div className="flex items-center gap-1.5 text-slate-500">
+                    <IndianRupee className="h-4 w-4 text-emerald-600" />
+                    <p className="text-xs uppercase tracking-wider font-bold">Total Spent</p>
+                  </div>
+                  <p className="font-sans text-xl font-extrabold mt-1 text-emerald-700">
+                    {formatCurrencyINR(totalSpent)}
+                  </p>
+                </Card>
+              )}
 
-              <Card
-                className={`bg-white border p-3.5 shadow-2xs ${
-                  totalDue > 0 ? "border-red-300 bg-red-50/30" : "border-slate-200"
-                }`}
-              >
-                <div className="flex items-center gap-1.5 text-slate-500">
-                  <IndianRupee
-                    className={`h-4 w-4 ${
-                      totalDue > 0 ? "text-red-600" : "text-emerald-600"
-                    }`}
-                  />
-                  <p className="text-xs uppercase tracking-wider font-bold">Balance Due</p>
-                </div>
-                <p
-                  className={`font-sans text-xl font-extrabold mt-1 ${
-                    totalDue > 0 ? "text-red-700 font-black" : "text-emerald-700"
+              {canSeeFinancials && (
+                <Card
+                  className={`bg-white border p-3.5 shadow-2xs ${
+                    totalDue > 0 ? "border-red-300 bg-red-50/30" : "border-slate-200"
                   }`}
                 >
-                  {formatCurrencyINR(totalDue)}
-                </p>
-              </Card>
+                  <div className="flex items-center gap-1.5 text-slate-500">
+                    <IndianRupee
+                      className={`h-4 w-4 ${
+                        totalDue > 0 ? "text-red-600" : "text-emerald-600"
+                      }`}
+                    />
+                    <p className="text-xs uppercase tracking-wider font-bold">Balance Due</p>
+                  </div>
+                  <p
+                    className={`font-sans text-xl font-extrabold mt-1 ${
+                      totalDue > 0 ? "text-red-700 font-black" : "text-emerald-700"
+                    }`}
+                  >
+                    {formatCurrencyINR(totalDue)}
+                  </p>
+                </Card>
+              )}
             </div>
 
             {/* Contact Details Card */}
@@ -347,9 +354,11 @@ export function CustomerProfileDialog({
                           <th className="py-2.5 px-3 uppercase tracking-wider text-[11px] font-bold text-slate-700">
                             Dates
                           </th>
-                          <th className="py-2.5 px-3 uppercase tracking-wider text-[11px] font-bold text-slate-700 text-right">
-                            Total
-                          </th>
+                          {canSeeFinancials && (
+                            <th className="py-2.5 px-3 uppercase tracking-wider text-[11px] font-bold text-slate-700 text-right">
+                              Total
+                            </th>
+                          )}
                           <th className="py-2.5 px-3 uppercase tracking-wider text-[11px] font-bold text-slate-700 text-right">
                             Status
                           </th>
@@ -369,9 +378,11 @@ export function CustomerProfileDialog({
                               <td className="py-2.5 px-3 text-slate-700 font-medium whitespace-nowrap">
                                 {formatDate(r.startDate)} → {formatDate(r.endDate)}
                               </td>
-                              <td className="py-2.5 px-3 text-right font-bold text-slate-900">
-                                {formatCurrencyINR(r.total)}
-                              </td>
+                              {canSeeFinancials && (
+                                <td className="py-2.5 px-3 text-right font-bold text-slate-900">
+                                  {formatCurrencyINR(r.total)}
+                                </td>
+                              )}
                               <td className="py-2.5 px-3 text-right">
                                 <StatusBadge status={r.status} />
                               </td>

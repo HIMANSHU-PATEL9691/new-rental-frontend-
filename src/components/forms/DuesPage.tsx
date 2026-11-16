@@ -22,6 +22,9 @@ export function DuesPage() {
   const { rentals, items, customers, searchQuery } = useStore();
   const query = searchQuery.trim().toLowerCase();
 
+  const userRole = (typeof window !== "undefined" ? localStorage.getItem("user_role") || "" : "").toLowerCase();
+  const canSeeFinancials = ["admin", "superadmin", "super_admin"].includes(userRole);
+
   const duesList = useMemo(() => {
     const billAggregates: Record<string, { totalWithPenalty: number, advance: number }> = {};
     rentals.forEach(r => {
@@ -128,6 +131,14 @@ export function DuesPage() {
     const cleanPhone = phone.replace(/[^0-9]/g, "");
     window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`, "_blank");
   };
+
+  if (!canSeeFinancials) {
+    return (
+      <div className="p-8 text-center text-muted-foreground">
+        Access restricted. You do not have permission to view pending dues.
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">

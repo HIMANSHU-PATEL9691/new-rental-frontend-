@@ -78,15 +78,40 @@ function getDueAmount(rental: any, allRentals: any[] = []) {
 
 export default function RentalsPage() {
   const navigate = useNavigate();
-  const role = typeof window !== 'undefined' ? localStorage.getItem("user_role") : null;
+
+  const getStoredRole = () =>
+    (typeof window !== "undefined" && window.localStorage
+      ? localStorage.getItem("user_role") || ""
+      : ""
+    )
+      .trim()
+      .toLowerCase();
+
+  const [userRole, setUserRole] = useState<string>(getStoredRole);
 
   useEffect(() => {
+    const role = getStoredRole();
+    setUserRole(role);
     if (!role) {
       navigate({ to: "/login" });
-    } else if (role !== "admin" && role !== "reception") {
+    } else if (
+      !["admin", "superadmin", "super_admin", "reception", "employee"].includes(role)
+    ) {
       navigate({ to: "/availability" });
     }
-  }, [role]);
+
+    const handleStorageChange = () => {
+      setUserRole(getStoredRole());
+    };
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("focus", handleStorageChange);
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("focus", handleStorageChange);
+    };
+  }, []);
+
+  const canViewFinancials = ["admin", "superadmin", "super_admin"].includes(userRole);
 
   const { rentals, getItem, getCustomer, loading, deleteRental, searchQuery } = useStore();
 
@@ -340,26 +365,28 @@ export default function RentalsPage() {
       </div>
 
       {/* Balance Summary Cards - Simple Modern Sans Numbers */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6 sm:mb-8">
-        {(["active", "upcoming", "overdue", "returned"] as const).map((k) => (
-          <Card key={`balance-${k}`} className="glass-panel p-4 sm:p-5 border-gold/20">
-            <p className="text-[9px] sm:text-[10px] uppercase tracking-[0.25em] text-muted-foreground font-semibold">
-              {k} Balance
+      {canViewFinancials && (
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6 sm:mb-8">
+          {(["active", "upcoming", "overdue", "returned"] as const).map((k) => (
+            <Card key={`balance-${k}`} className="glass-panel p-4 sm:p-5 border-gold/20">
+              <p className="text-[9px] sm:text-[10px] uppercase tracking-[0.25em] text-muted-foreground font-semibold">
+                {k} Balance
+              </p>
+              <p className={`font-sans font-bold text-lg sm:text-2xl mt-2 tracking-tight ${balanceSummary[k] > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                {formatCurrencyINR(balanceSummary[k])}
+              </p>
+            </Card>
+          ))}
+          <Card className="glass-panel p-4 sm:p-5 border border-gold/30 bg-gold/5 col-span-2 lg:col-span-1">
+            <p className="text-[9px] sm:text-[10px] uppercase tracking-[0.25em] text-gold font-bold">
+              Total Balance
             </p>
-            <p className={`font-sans font-bold text-lg sm:text-2xl mt-2 tracking-tight ${balanceSummary[k] > 0 ? "text-red-600" : "text-emerald-600"}`}>
-              {formatCurrencyINR(balanceSummary[k])}
+            <p className={`font-sans font-bold text-2xl sm:text-3xl mt-2 tracking-tight ${balanceSummary.total > 0 ? "text-red-600" : "text-emerald-600"}`}>
+              {formatCurrencyINR(balanceSummary.total)}
             </p>
           </Card>
-        ))}
-        <Card className="glass-panel p-4 sm:p-5 border border-gold/30 bg-gold/5 col-span-2 lg:col-span-1">
-          <p className="text-[9px] sm:text-[10px] uppercase tracking-[0.25em] text-gold font-bold">
-            Total Balance
-          </p>
-          <p className={`font-sans font-bold text-2xl sm:text-3xl mt-2 tracking-tight ${balanceSummary.total > 0 ? "text-red-600" : "text-emerald-600"}`}>
-            {formatCurrencyINR(balanceSummary.total)}
-          </p>
-        </Card>
-      </div>
+        </div>
+      )}
 
       {/* Mobile view */}
       <div className="space-y-3 sm:hidden">
@@ -475,22 +502,24 @@ export default function RentalsPage() {
                   )}
                 </div>
 
-                <div className="grid grid-cols-3 gap-1.5 bg-secondary/30 rounded-lg p-2 text-center">
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Total Rent</p>
-                    <p className="font-sans font-bold text-xs text-foreground mt-0.5">{formatCurrencyINR(order.totalRent)}</p>
+                {canViewFinancials && (
+                  <div className="grid grid-cols-3 gap-1.5 bg-secondary/30 rounded-lg p-2 text-center">
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Total Rent</p>
+                      <p className="font-sans font-bold text-xs text-foreground mt-0.5">{formatCurrencyINR(order.totalRent)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Advance</p>
+                      <p className="font-sans font-bold text-xs text-emerald-600 mt-0.5">{formatCurrencyINR(order.advance)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Due</p>
+                      <p className={`font-sans font-bold text-xs mt-0.5 ${order.dueAmount > 0 ? "text-destructive" : "text-emerald-600"}`}>
+                        {formatCurrencyINR(order.dueAmount)}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Advance</p>
-                    <p className="font-sans font-bold text-xs text-emerald-600 mt-0.5">{formatCurrencyINR(order.advance)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Due</p>
-                    <p className={`font-sans font-bold text-xs mt-0.5 ${order.dueAmount > 0 ? "text-destructive" : "text-emerald-600"}`}>
-                      {formatCurrencyINR(order.dueAmount)}
-                    </p>
-                  </div>
-                </div>
+                )}
               </div>
 
               <div className="mt-3 pt-2 flex justify-end items-center gap-2">
@@ -565,22 +594,24 @@ export default function RentalsPage() {
                       </span>
                     </div>
 
-                    <div className="mt-2.5 grid grid-cols-3 gap-1 bg-secondary/30 rounded-lg p-1.5 text-center text-xs">
-                      <div>
-                        <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Total</p>
-                        <p className="font-sans font-bold text-xs text-foreground mt-0.5">{formatCurrencyINR(r.total)}</p>
+                    {canViewFinancials && (
+                      <div className="mt-2.5 grid grid-cols-3 gap-1 bg-secondary/30 rounded-lg p-1.5 text-center text-xs">
+                        <div>
+                          <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Total</p>
+                          <p className="font-sans font-bold text-xs text-foreground mt-0.5">{formatCurrencyINR(r.total)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Advance</p>
+                          <p className="font-sans font-bold text-xs text-emerald-600 mt-0.5">{formatCurrencyINR(r.advance || 0)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Due</p>
+                          <p className={`font-sans font-bold text-xs mt-0.5 ${dueAmount > 0 ? "text-destructive" : "text-emerald-600"}`}>
+                            {formatCurrencyINR(dueAmount)}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Advance</p>
-                        <p className="font-sans font-bold text-xs text-emerald-600 mt-0.5">{formatCurrencyINR(r.advance || 0)}</p>
-                      </div>
-                      <div>
-                        <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Due</p>
-                        <p className={`font-sans font-bold text-xs mt-0.5 ${dueAmount > 0 ? "text-destructive" : "text-emerald-600"}`}>
-                          {formatCurrencyINR(dueAmount)}
-                        </p>
-                      </div>
-                    </div>
+                    )}
                     <div className="mt-3 flex justify-end items-center gap-2">
                       <ViewInvoiceDialog rental={r} />
                       <EditRentalDialog
@@ -632,12 +663,16 @@ export default function RentalsPage() {
                 <TableHead className="text-[11px] font-bold uppercase tracking-wider">
                   Dates
                 </TableHead>
-                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-right">
-                  Total
-                </TableHead>
-                <TableHead className="text-[11px] font-bold uppercase tracking-wider text-right">
-                  Due
-                </TableHead>
+                {canViewFinancials && (
+                  <>
+                    <TableHead className="text-[11px] font-bold uppercase tracking-wider text-right">
+                      Total
+                    </TableHead>
+                    <TableHead className="text-[11px] font-bold uppercase tracking-wider text-right">
+                      Due
+                    </TableHead>
+                  </>
+                )}
                 <TableHead className="text-[11px] font-bold uppercase tracking-wider text-center w-28">
                   Status
                 </TableHead>
@@ -649,7 +684,7 @@ export default function RentalsPage() {
             <TableBody>
               {(viewMode === "orders" ? groupedOrders.length === 0 : filteredRentals.length === 0) && (
                 <TableRow className="border-border hover:bg-transparent">
-                  <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
+                  <TableCell colSpan={canViewFinancials ? 8 : 6} className="py-12 text-center text-muted-foreground">
                     <div className="flex flex-col items-center justify-center gap-1">
                       <p className="font-sans font-semibold text-base text-foreground">No rentals found</p>
                       <p className="text-xs text-muted-foreground">
@@ -790,9 +825,11 @@ export default function RentalsPage() {
                                     <span className="font-mono text-[10px] text-muted-foreground bg-secondary px-1 py-0.5 rounded shrink-0">
                                       #{r.itemNo || item?.customId || "N/A"}
                                     </span>
-                                    <span className="font-sans font-semibold text-slate-700 text-[11px] shrink-0 ml-auto">
-                                      {formatCurrencyINR(Number(r.total) || Number(r.rate) || 0)}
-                                    </span>
+                                    {canViewFinancials && (
+                                      <span className="font-sans font-semibold text-slate-700 text-[11px] shrink-0 ml-auto">
+                                        {formatCurrencyINR(Number(r.total) || Number(r.rate) || 0)}
+                                      </span>
+                                    )}
                                   </div>
                                 ))}
                               </div>
@@ -833,23 +870,27 @@ export default function RentalsPage() {
                     </TableCell>
 
                     {/* Total */}
-                    <TableCell className="align-top py-3.5 text-right whitespace-nowrap">
-                      <div className="font-sans font-bold text-sm sm:text-base text-foreground">
-                        {formatCurrencyINR(order.totalRent)}
-                      </div>
-                      {order.advance > 0 && (
-                        <div className="text-[11px] text-emerald-700 font-sans font-medium">
-                          Paid: {formatCurrencyINR(order.advance)}
+                    {canViewFinancials && (
+                      <TableCell className="align-top py-3.5 text-right whitespace-nowrap">
+                        <div className="font-sans font-bold text-sm sm:text-base text-foreground">
+                          {formatCurrencyINR(order.totalRent)}
                         </div>
-                      )}
-                    </TableCell>
+                        {order.advance > 0 && (
+                          <div className="text-[11px] text-emerald-700 font-sans font-medium">
+                            Paid: {formatCurrencyINR(order.advance)}
+                          </div>
+                        )}
+                      </TableCell>
+                    )}
 
                     {/* Due */}
-                    <TableCell className="align-top py-3.5 text-right whitespace-nowrap">
-                      <div className={`font-sans font-bold text-sm sm:text-base ${order.dueAmount > 0 ? "text-destructive" : "text-emerald-600"}`}>
-                        {formatCurrencyINR(order.dueAmount)}
-                      </div>
-                    </TableCell>
+                    {canViewFinancials && (
+                      <TableCell className="align-top py-3.5 text-right whitespace-nowrap">
+                        <div className={`font-sans font-bold text-sm sm:text-base ${order.dueAmount > 0 ? "text-destructive" : "text-emerald-600"}`}>
+                          {formatCurrencyINR(order.dueAmount)}
+                        </div>
+                      </TableCell>
+                    )}
 
                     {/* Status */}
                     <TableCell className="align-top py-3.5 text-center">
@@ -940,12 +981,16 @@ export default function RentalsPage() {
                         </div>
                         <div>to {formatDate(r.endDate)}</div>
                       </TableCell>
-                      <TableCell className="text-right font-sans font-bold text-sm sm:text-base whitespace-nowrap text-foreground">
-                        {formatCurrencyINR(r.total)}
-                      </TableCell>
-                      <TableCell className={`text-right font-sans font-bold text-sm sm:text-base whitespace-nowrap ${dueAmount > 0 ? "text-destructive" : "text-emerald-600"}`}>
-                        {formatCurrencyINR(dueAmount)}
-                      </TableCell>
+                      {canViewFinancials && (
+                        <TableCell className="text-right font-sans font-bold text-sm sm:text-base whitespace-nowrap text-foreground">
+                          {formatCurrencyINR(r.total)}
+                        </TableCell>
+                      )}
+                      {canViewFinancials && (
+                        <TableCell className={`text-right font-sans font-bold text-sm sm:text-base whitespace-nowrap ${dueAmount > 0 ? "text-destructive" : "text-emerald-600"}`}>
+                          {formatCurrencyINR(dueAmount)}
+                        </TableCell>
+                      )}
                       <TableCell className="text-center">
                         <StatusBadge status={r.status} kind="rental" />
                       </TableCell>

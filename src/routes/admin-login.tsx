@@ -39,15 +39,15 @@ export default function AdminLoginPage() {
       const trimmedUser = username.trim();
       const trimmedPass = password.trim();
 
-      // Check credentials for Shop 1 Admin (ID: Sajansagar2516, Pass: Shilpa2516)
+      // Check credentials for Shop 1 Admin (ID: Sajansagar2525, Pass: Shilpa2525)
       const isShop1Admin =
-        (trimmedUser === "Sajansagar2516" || trimmedUser.toLowerCase() === "shop1admin" || trimmedUser.toLowerCase() === "shop1") &&
-        (trimmedPass === "Shilpa2516" || trimmedPass === "Shop1Password");
+        (trimmedUser === "Sajansagar2525" || trimmedUser.toLowerCase() === "sajansagar2525" || trimmedUser.toLowerCase() === "shop1admin" || trimmedUser.toLowerCase() === "shop1") &&
+        (trimmedPass === "Shilpa2525" || trimmedPass === "Shop1Password");
 
-      // Check credentials for Shop 2 Admin (ID: Shop2Admin, Pass: Shilpa2516 - same as Shop 1)
+      // Check credentials for Shop 2 Admin (ID: Shop2Admin, Pass: Shilpa2525 - same as Shop 1)
       const isShop2Admin =
         (trimmedUser.toLowerCase() === "shop2admin" || trimmedUser.toLowerCase() === "shop2" || trimmedUser === "SajansagarShop2") &&
-        (trimmedPass === "Shilpa2516" || trimmedPass === "Shop1Password" || trimmedPass === "Shop2Password" || trimmedPass === "ShilpaShop2" || trimmedPass === "Shop2@2026");
+        (trimmedPass === "Shilpa2525" || trimmedPass === "Shop1Password" || trimmedPass === "Shop2Password" || trimmedPass === "ShilpaShop2" || trimmedPass === "Shop2@2026");
 
       if (isShop1Admin || isShop2Admin) {
         const activeBranch = branch || (isShop2Admin ? "Shop 2" : "Shop 1");
@@ -57,7 +57,7 @@ export default function AdminLoginPage() {
         localStorage.setItem("user_branch", activeBranch);
         toast.success(`Welcome back! Logged in as Admin for ${activeBranch}`);
         window.location.href = "/";
-      } else if ((trimmedUser === "Sajansagar2516" || trimmedUser.toLowerCase() === "shop2admin") && trimmedPass === "Shilpa2516") {
+      } else if ((trimmedUser === "Sajansagar2525" || trimmedUser.toLowerCase() === "sajansagar2525" || trimmedUser.toLowerCase() === "shop2admin") && trimmedPass === "Shilpa2525") {
         const activeBranch = branch || (trimmedUser.toLowerCase() === "shop2admin" ? "Shop 2" : "Shop 1");
         localStorage.setItem("user_role", "admin");
         localStorage.setItem("user_name", `Admin (${activeBranch})`);

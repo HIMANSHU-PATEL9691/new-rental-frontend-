@@ -14,9 +14,9 @@ export default function RouteComponent() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const role = localStorage.getItem("user_role");
+    const role = (localStorage.getItem("user_role") || "").toLowerCase();
     if (!role) navigate({ to: "/login" });
-    else if (role !== "admin" && role !== "reception") navigate({ to: "/availability" });
+    else if (!["admin", "superadmin", "super_admin"].includes(role)) navigate({ to: "/availability" });
   }, []);
 
   return (

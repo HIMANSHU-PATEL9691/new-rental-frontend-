@@ -602,12 +602,21 @@ export default function CalendarPage() {
                           : e.status === "active"
                             ? "bg-gold/15 text-gold border-gold/40"
                             : "bg-emerald/15 text-emerald border-emerald/40";
+                      const hasRemark = Boolean(e.remark && e.remark !== "-");
+                      const tooltipText = `${item?.name || "Piece"}${hasRemark ? ` • Remark: ${e.remark}` : ""}`;
+
                       return (
                         <div
                           key={e.id}
-                          className={`text-xs px-2 py-1 rounded-sm border truncate ${colorClass}`}
+                          className={`text-xs px-2 py-1 rounded-sm border flex items-center justify-between gap-1.5 ${colorClass}`}
+                          title={tooltipText}
                         >
-                          {item?.name}
+                          <span className="truncate font-medium">{item?.name || "Piece"}</span>
+                          {hasRemark && (
+                            <span className="text-[10px] opacity-85 shrink-0 truncate max-w-[130px] italic bg-background/50 px-1.5 py-0.2 rounded border border-current/20">
+                              {e.remark}
+                            </span>
+                          )}
                         </div>
                       );
                     })}
@@ -682,18 +691,29 @@ export default function CalendarPage() {
                                     : e.status === "active"
                                       ? "bg-gold/15 text-gold border-gold/40"
                                       : "bg-emerald/15 text-emerald border-emerald/40";
+                                const hasRemark = Boolean(e.remark && e.remark !== "-");
+                                const tooltipText = `${item?.name || "Piece"}${hasRemark ? `\nRemark: ${e.remark}` : ""}\n(Click date to view details)`;
+
                                 return (
                                   <div
                                     key={e.id}
-                                    className={`text-[10px] truncate px-1.5 py-0.5 rounded-sm border ${colorClass}`}
-                                    title={item?.name}
+                                    className={`text-[10px] px-1.5 py-0.5 rounded-sm border ${colorClass} flex items-center justify-between gap-1 overflow-hidden transition-all hover:brightness-105`}
+                                    title={tooltipText}
                                   >
-                                    {item?.name}
+                                    <span className="truncate font-medium">{item?.name || "Piece"}</span>
+                                    {hasRemark && (
+                                      <span
+                                        className="text-[9px] opacity-85 shrink-0 truncate max-w-[65px] bg-background/60 px-1 py-0.2 rounded font-normal italic border border-current/20"
+                                        title={`Remark: ${e.remark}`}
+                                      >
+                                        {e.remark}
+                                      </span>
+                                    )}
                                   </div>
                                 );
                               })}
                               {events.length > 2 && (
-                                <div className="text-[10px] text-muted-foreground">
+                                <div className="text-[10px] text-muted-foreground font-medium pl-0.5">
                                   +{events.length - 2} more
                                 </div>
                               )}
@@ -750,9 +770,18 @@ export default function CalendarPage() {
                       <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">
                         {formatDate(r.startDate)} to {formatDate(r.endDate)}
                       </p>
-                      <div className="mt-1.5">
+                      <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                         <StatusBadge status={r.status} kind="rental" />
                       </div>
+                      {r.remark && r.remark !== "-" && (
+                        <p
+                          className="text-[11px] text-amber-800 dark:text-amber-300 mt-1.5 line-clamp-2 break-words bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 leading-snug"
+                          title={r.remark}
+                        >
+                          <span className="font-bold text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-400">Note: </span>
+                          {r.remark}
+                        </p>
+                      )}
                     </div>
                   </div>
                 );
@@ -829,24 +858,45 @@ export default function CalendarPage() {
                       <span className="font-semibold text-emerald-600">{formatDate(e.deliveryDate || e.startDate)}</span>
                     </div>
                   </div>
+
+                  {/* Complete remarks with full multi-line wrapping */}
+                  {e.remark && e.remark !== "-" && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-2.5 text-xs">
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-amber-700 dark:text-amber-400 mb-1">
+                        Remark
+                      </p>
+                      <p
+                        className="remarks-text text-foreground whitespace-normal break-words leading-relaxed text-xs"
+                        style={{
+                          whiteSpace: "normal",
+                          overflowWrap: "anywhere",
+                          wordBreak: "break-word",
+                          textOverflow: "unset",
+                        }}
+                      >
+                        {e.remark}
+                      </p>
+                    </div>
+                  )}
                 </div>
               );
             })}
           </div>
 
-          {/* Desktop Table View - Designed to fit completely in one look without horizontal scrollbar */}
-          <div className="hidden sm:block rounded-md border border-border mt-4 overflow-x-hidden">
+          {/* Desktop Table View - Designed to fit completely in one look with responsive scrollbar */}
+          <div className="hidden sm:block rounded-md border border-border mt-4 overflow-x-auto">
             <Table className="text-xs w-full table-auto">
               <TableHeader className="bg-secondary/40">
                 <TableRow className="border-b border-border">
-                  <TableHead className="w-12 px-2.5 py-2 text-center whitespace-nowrap">Bill</TableHead>
-                  <TableHead className="px-2.5 py-2 whitespace-nowrap">Client</TableHead>
-                  <TableHead className="px-2.5 py-2 whitespace-nowrap">Piece / Item</TableHead>
-                  <TableHead className="px-2.5 py-2 whitespace-nowrap">Size / Color</TableHead>
-                  <TableHead className="px-2.5 py-2 whitespace-nowrap">Booking Dates</TableHead>
-                  <TableHead className="px-2.5 py-2 whitespace-nowrap">Delivery</TableHead>
-                  <TableHead className="px-2.5 py-2 text-center whitespace-nowrap">Status</TableHead>
-                  <TableHead className="px-2.5 py-2 text-right whitespace-nowrap">Remark & Prep</TableHead>
+                  <TableHead className="w-12 px-2.5 py-2.5 text-center whitespace-nowrap">Bill</TableHead>
+                  <TableHead className="px-2.5 py-2.5 whitespace-nowrap">Client</TableHead>
+                  <TableHead className="px-2.5 py-2.5 whitespace-nowrap">Piece / Item</TableHead>
+                  <TableHead className="px-2.5 py-2.5 whitespace-nowrap">Size / Color</TableHead>
+                  <TableHead className="px-2.5 py-2.5 whitespace-nowrap">Booking Dates</TableHead>
+                  <TableHead className="px-2.5 py-2.5 whitespace-nowrap">Delivery</TableHead>
+                  <TableHead className="px-2.5 py-2.5 text-center whitespace-nowrap">Status</TableHead>
+                  <TableHead className="px-3 py-2.5 text-left min-w-[170px] max-w-[300px]">Remarks</TableHead>
+                  <TableHead className="px-2.5 py-2.5 text-right whitespace-nowrap">Preparation</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -907,107 +957,120 @@ export default function CalendarPage() {
                       <TableCell className="whitespace-nowrap text-center px-2.5 py-2">
                         <StatusBadge status={e.status} kind="rental" />
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-xs px-2.5 py-2">
-                        <div className="flex items-center justify-end gap-2">
-                          {e.remark && e.remark !== "-" && (
-                            <div className="text-[11px] text-muted-foreground bg-secondary/50 border border-border/50 px-2 py-0.5 rounded max-w-32 truncate" title={e.remark}>
-                              {e.remark}
-                            </div>
-                          )}
-                          <div className="flex shrink-0 flex-col items-end gap-1">
-                            {isDrycleanDone ? (
-                              <Badge variant="outline" className="bg-indigo-500/10 text-indigo-500 border-indigo-500/20 font-medium tracking-wide text-[9px] px-1.5 py-0.5 whitespace-nowrap">
-                                Dryclean: {(e as any).drycleanCompletedBy}
-                              </Badge>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-5.5 px-2 text-[9px] uppercase tracking-wider text-indigo-700 border-indigo-500/40 hover:bg-indigo-500/10 whitespace-nowrap"
-                                onClick={() => {
-                                  const currentName = localStorage.getItem("user_name") || "";
-                                  handleMarkDryclean(e.id, currentName);
-                                }}
-                              >
-                                Mark Dryclean Done
-                              </Button>
-                            )}
-
-                            {isFittingDone ? (
-                              <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20 font-medium tracking-wide text-[9px] px-1.5 py-0.5 whitespace-nowrap">
-                                Fitting: {(e as any).fittingCompletedBy}
-                              </Badge>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-5.5 px-2 text-[9px] uppercase tracking-wider text-purple-700 border-purple-500/40 hover:bg-purple-500/10 whitespace-nowrap"
-                                onClick={() => {
-                                  const currentName = localStorage.getItem("user_name") || "";
-                                  handleMarkFitting(e.id, currentName);
-                                }}
-                              >
-                                Mark Fitting Done
-                              </Button>
-                            )}
-
-                            {isDrycleanAdminConfirmed ? (
-                              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 font-medium tracking-wide text-[9px] px-1.5 py-0.5 whitespace-nowrap">
-                                Dryclean Confirmed: {(e as any).drycleanAdminConfirmedBy}
-                              </Badge>
-                            ) : (
-                              (role === "admin" || role === "reception") && isDrycleanDone && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-5.5 px-2 text-[9px] uppercase tracking-wider text-emerald-700 border-emerald-500/40 hover:bg-emerald-500/10 whitespace-nowrap"
-                                  onClick={() => {
-                                    const currentName = localStorage.getItem("user_name") || "";
-                                    handleAdminConfirmDryclean(e.id, currentName);
-                                  }}
-                                >
-                                  Confirm Dryclean
-                                </Button>
-                              )
-                            )}
-
-                            {isEmployeeReady ? (
-                              <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 font-medium tracking-wide text-[9px] px-1.5 py-0.5 whitespace-nowrap">
-                                Ready: {(e as any).remarkConfirmedBy}
-                              </Badge>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-5.5 px-2 text-[9px] uppercase tracking-wider text-orange-600 border-orange-500/40 hover:bg-orange-500/10 whitespace-nowrap"
-                                onClick={() => {
-                                  const currentName = localStorage.getItem("user_name") || "";
-                                  handleMarkReady(e.id, currentName);
-                                }}
-                              >
-                                Mark Ready
-                              </Button>
-                            )}
-                            {isAdminReconfirmed ? (
-                              <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20 font-medium tracking-wide text-[9px] px-1.5 py-0.5 whitespace-nowrap">
-                                Rechecked: {(e as any).adminReconfirmedBy}
-                              </Badge>
-                            ) : (
-                              (role === "admin" || role === "reception") && isEmployeeReady && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-5.5 px-2 text-[9px] uppercase tracking-wider text-blue-600 border-blue-500/40 hover:bg-blue-500/10 whitespace-nowrap"
-                                  onClick={() => {
-                                    const currentName = localStorage.getItem("user_name") || "";
-                                    handleAdminReconfirm(e.id, currentName);
-                                  }}
-                                >
-                                  Admin Check
-                                </Button>
-                              )
-                            )}
+                      <TableCell className="px-3 py-2 align-middle min-w-[170px] max-w-[280px]">
+                        {e.remark && e.remark !== "-" ? (
+                          <div
+                            className="remarks-text text-[11px] text-foreground bg-secondary/50 border border-border/70 px-2.5 py-1.5 rounded-md leading-relaxed whitespace-normal break-words shadow-2xs"
+                            style={{
+                              whiteSpace: "normal",
+                              overflowWrap: "anywhere",
+                              wordBreak: "break-word",
+                              textOverflow: "unset",
+                              maxWidth: "100%",
+                              height: "auto",
+                            }}
+                            title={e.remark}
+                          >
+                            {e.remark}
                           </div>
+                        ) : (
+                          <span className="text-muted-foreground/40 text-[11px] italic">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-xs px-2.5 py-2 align-middle text-right whitespace-nowrap">
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          {isDrycleanDone ? (
+                            <Badge variant="outline" className="bg-indigo-500/10 text-indigo-500 border-indigo-500/20 font-medium tracking-wide text-[9px] px-1.5 py-0.5 whitespace-nowrap">
+                              Dryclean: {(e as any).drycleanCompletedBy}
+                            </Badge>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-5.5 px-2 text-[9px] uppercase tracking-wider text-indigo-700 border-indigo-500/40 hover:bg-indigo-500/10 whitespace-nowrap"
+                              onClick={() => {
+                                const currentName = localStorage.getItem("user_name") || "";
+                                handleMarkDryclean(e.id, currentName);
+                              }}
+                            >
+                              Mark Dryclean Done
+                            </Button>
+                          )}
+
+                          {isFittingDone ? (
+                            <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/20 font-medium tracking-wide text-[9px] px-1.5 py-0.5 whitespace-nowrap">
+                              Fitting: {(e as any).fittingCompletedBy}
+                            </Badge>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-5.5 px-2 text-[9px] uppercase tracking-wider text-purple-700 border-purple-500/40 hover:bg-purple-500/10 whitespace-nowrap"
+                              onClick={() => {
+                                const currentName = localStorage.getItem("user_name") || "";
+                                handleMarkFitting(e.id, currentName);
+                              }}
+                            >
+                              Mark Fitting Done
+                            </Button>
+                          )}
+
+                          {isDrycleanAdminConfirmed ? (
+                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 font-medium tracking-wide text-[9px] px-1.5 py-0.5 whitespace-nowrap">
+                              Dryclean Confirmed: {(e as any).drycleanAdminConfirmedBy}
+                            </Badge>
+                          ) : (
+                            (role === "admin" || role === "reception") && isDrycleanDone && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-5.5 px-2 text-[9px] uppercase tracking-wider text-emerald-700 border-emerald-500/40 hover:bg-emerald-500/10 whitespace-nowrap"
+                                onClick={() => {
+                                  const currentName = localStorage.getItem("user_name") || "";
+                                  handleAdminConfirmDryclean(e.id, currentName);
+                                }}
+                              >
+                                Confirm Dryclean
+                              </Button>
+                            )
+                          )}
+
+                          {isEmployeeReady ? (
+                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20 font-medium tracking-wide text-[9px] px-1.5 py-0.5 whitespace-nowrap">
+                              Ready: {(e as any).remarkConfirmedBy}
+                            </Badge>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-5.5 px-2 text-[9px] uppercase tracking-wider text-orange-600 border-orange-500/40 hover:bg-orange-500/10 whitespace-nowrap"
+                              onClick={() => {
+                                const currentName = localStorage.getItem("user_name") || "";
+                                handleMarkReady(e.id, currentName);
+                              }}
+                            >
+                              Mark Ready
+                            </Button>
+                          )}
+                          {isAdminReconfirmed ? (
+                            <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20 font-medium tracking-wide text-[9px] px-1.5 py-0.5 whitespace-nowrap">
+                              Rechecked: {(e as any).adminReconfirmedBy}
+                            </Badge>
+                          ) : (
+                            (role === "admin" || role === "reception") && isEmployeeReady && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-5.5 px-2 text-[9px] uppercase tracking-wider text-blue-600 border-blue-500/40 hover:bg-blue-500/10 whitespace-nowrap"
+                                onClick={() => {
+                                  const currentName = localStorage.getItem("user_name") || "";
+                                  handleAdminReconfirm(e.id, currentName);
+                                }}
+                              >
+                                Admin Check
+                              </Button>
+                            )
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -1107,8 +1170,18 @@ export default function CalendarPage() {
                 {/* Remark */}
                 {r.remark && r.remark !== "-" && (
                   <div className="bg-orange-500/5 border border-orange-500/20 rounded-lg px-3.5 py-2.5">
-                    <p className="text-[10px] uppercase tracking-wider text-orange-500 mb-1">Remark</p>
-                    <p className="text-xs text-foreground">{r.remark}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-orange-500 mb-1 font-bold">Remark</p>
+                    <p
+                      className="remarks-text text-xs text-foreground whitespace-normal break-words leading-relaxed"
+                      style={{
+                        whiteSpace: "normal",
+                        overflowWrap: "anywhere",
+                        wordBreak: "break-word",
+                        textOverflow: "unset",
+                      }}
+                    >
+                      {r.remark}
+                    </p>
                   </div>
                 )}
 

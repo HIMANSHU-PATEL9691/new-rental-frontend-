@@ -58,8 +58,8 @@ export function DeliveriesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [localSearch, setLocalSearch] = useState("");
   const [updating, setUpdating] = useState<string | null>(null);
-  const canUpdateDeliveries = ["admin", "reception"].includes(role);
-  const canSeeFinancials = ["admin", "reception"].includes(role);
+  const canUpdateDeliveries = ["admin", "superadmin", "super_admin", "reception"].includes(role);
+  const canSeeFinancials = ["admin", "superadmin", "super_admin"].includes(role);
 
   useEffect(() => {
     if (!role) {
@@ -159,17 +159,21 @@ export function DeliveriesPage() {
     const balance = Math.max(0, totalBill - aggAdvance);
 
     let msg = `Are you sure you want to mark this product as delivered?\n\n`;
-    msg += `Payment Summary:\n`;
-    msg += `• Total Rent: ${formatCurrencyINR(aggRent)}\n`;
-    if (aggSecurity > 0) msg += `• Security Deposit: ${formatCurrencyINR(aggSecurity)}\n`;
-    msg += `• Total Bill: ${formatCurrencyINR(totalBill)}\n`;
-    msg += `• Amount Paid: ${formatCurrencyINR(aggAdvance)}\n`;
-    msg += `• Balance Due: ${formatCurrencyINR(balance)}\n\n`;
+    if (canSeeFinancials) {
+      msg += `Payment Summary:\n`;
+      msg += `• Total Rent: ${formatCurrencyINR(aggRent)}\n`;
+      if (aggSecurity > 0) msg += `• Security Deposit: ${formatCurrencyINR(aggSecurity)}\n`;
+      msg += `• Total Bill: ${formatCurrencyINR(totalBill)}\n`;
+      msg += `• Amount Paid: ${formatCurrencyINR(aggAdvance)}\n`;
+      msg += `• Balance Due: ${formatCurrencyINR(balance)}\n\n`;
 
-    if (balance > 0) {
-      msg += `Pending Balance to collect: ${formatCurrencyINR(balance)}\n\n`;
+      if (balance > 0) {
+        msg += `Pending Balance to collect: ${formatCurrencyINR(balance)}\n\n`;
+      }
+      msg += `Click OK to confirm delivery and collect any remaining balance.`;
+    } else {
+      msg += `Click OK to confirm delivery.`;
     }
-    msg += `Click OK to confirm delivery and collect any remaining balance.`;
 
     const confirmed = window.confirm(msg);
     if (confirmed) {
@@ -196,20 +200,24 @@ export function DeliveriesPage() {
     const securityToRefund = (rental.securityAmount || 0) > 0 && !(rental as any).securityReturned ? rental.securityAmount : 0;
     
     let msg = `Are you sure you want to mark this product as returned?\n\n`;
-    msg += `Payment Summary:\n`;
-    msg += `• Total Rent: ${formatCurrencyINR(aggRent)}\n`;
-    if (aggSecurity > 0) msg += `• Security Deposit: ${formatCurrencyINR(aggSecurity)}\n`;
-    msg += `• Total Bill: ${formatCurrencyINR(totalBill)}\n`;
-    msg += `• Amount Paid: ${formatCurrencyINR(aggAdvance)}\n`;
-    msg += `• Balance Due: ${formatCurrencyINR(balance)}\n`;
-    
-    if (balance > 0) {
-      msg += `\nPending Balance to collect: ${formatCurrencyINR(balance)}`;
+    if (canSeeFinancials) {
+      msg += `Payment Summary:\n`;
+      msg += `• Total Rent: ${formatCurrencyINR(aggRent)}\n`;
+      if (aggSecurity > 0) msg += `• Security Deposit: ${formatCurrencyINR(aggSecurity)}\n`;
+      msg += `• Total Bill: ${formatCurrencyINR(totalBill)}\n`;
+      msg += `• Amount Paid: ${formatCurrencyINR(aggAdvance)}\n`;
+      msg += `• Balance Due: ${formatCurrencyINR(balance)}\n`;
+      
+      if (balance > 0) {
+        msg += `\nPending Balance to collect: ${formatCurrencyINR(balance)}`;
+      }
+      if (securityToRefund > 0) {
+        msg += `\nSecurity Deposit to refund: ${formatCurrencyINR(securityToRefund)}`;
+      }
+      msg += `\n\nAre all dues (balance & security) clear? Clicking OK will update and clear the amounts.`;
+    } else {
+      msg += `Click OK to confirm return.`;
     }
-    if (securityToRefund > 0) {
-      msg += `\nSecurity Deposit to refund: ${formatCurrencyINR(securityToRefund)}`;
-    }
-    msg += `\n\nAre all dues (balance & security) clear? Clicking OK will update and clear the amounts.`;
 
     const confirmed = window.confirm(msg);
     if (confirmed) {

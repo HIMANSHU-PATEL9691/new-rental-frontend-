@@ -72,14 +72,16 @@ const useNavigate = () => {
 export default function DashboardPage() {
 
   const navigate = useNavigate();
-  const role = typeof window !== 'undefined' ? localStorage.getItem("user_role") : null;
+  const rawRole = typeof window !== 'undefined' ? localStorage.getItem("user_role") : null;
+  const role = (rawRole || "").trim().toLowerCase();
+  const isAdminRole = ["admin", "superadmin", "super_admin"].includes(role);
 
   useEffect(() => {
     if (!role) navigate({ to: "/login" });
-    else if (role !== "admin") navigate({ to: "/availability" });
-  }, [role]);
+    else if (!isAdminRole) navigate({ to: "/availability" });
+  }, [role, isAdminRole]);
 
-  if (role !== "admin") {
+  if (!isAdminRole) {
     return null;
   }
 

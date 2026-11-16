@@ -82,14 +82,39 @@ function formatDate(dateStr?: string) {
 export default function CustomersPage() {
   const navigate = useNavigate();
 
+  const getStoredRole = () =>
+    (typeof window !== "undefined" && window.localStorage
+      ? localStorage.getItem("user_role") || ""
+      : ""
+    )
+      .trim()
+      .toLowerCase();
+
+  const [userRole, setUserRole] = useState<string>(getStoredRole);
+
   useEffect(() => {
-    const role = localStorage.getItem("user_role");
+    const role = getStoredRole();
+    setUserRole(role);
     if (!role) {
       navigate({ to: "/login" });
-    } else if (role !== "admin" && role !== "reception") {
+    } else if (
+      !["admin", "superadmin", "super_admin", "reception", "employee"].includes(role)
+    ) {
       navigate({ to: "/availability" });
     }
+
+    const handleStorageChange = () => {
+      setUserRole(getStoredRole());
+    };
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("focus", handleStorageChange);
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("focus", handleStorageChange);
+    };
   }, []);
+
+  const canViewLifetimeValue = ["admin", "superadmin", "super_admin"].includes(userRole);
 
   const { customers, rentals, loading, searchQuery, deleteCustomer } = useStore();
   const [localSearch, setLocalSearch] = useState("");
@@ -183,7 +208,14 @@ export default function CustomersPage() {
       </div>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 mb-5 sm:mb-8 font-sans">
+      <div
+        className={cn(
+          "grid gap-2.5 sm:gap-4 mb-5 sm:mb-8 font-sans",
+          canViewLifetimeValue
+            ? "grid-cols-2 lg:grid-cols-4"
+            : "grid-cols-1 sm:grid-cols-3"
+        )}
+      >
         <Card className="bg-white border border-slate-200/90 shadow-xs p-3.5 sm:p-5">
           <p className="text-[10px] sm:text-xs uppercase tracking-wider font-bold text-slate-500 truncate">
             Total Clients
@@ -216,14 +248,16 @@ export default function CustomersPage() {
             {totalRentals}
           </p>
         </Card>
-        <Card className="bg-white border border-amber-300 shadow-xs p-3.5 sm:p-5 bg-gradient-to-br from-amber-50/50 to-white">
-          <p className="text-[10px] sm:text-xs uppercase tracking-wider font-bold text-amber-800 truncate">
-            Total Lifetime Value
-          </p>
-          <p className="font-sans text-xl sm:text-3xl font-extrabold text-amber-700 mt-1">
-            {formatCurrencyINR(totalRevenue)}
-          </p>
-        </Card>
+        {canViewLifetimeValue && (
+          <Card className="bg-white border border-amber-300 shadow-xs p-3.5 sm:p-5 bg-gradient-to-br from-amber-50/50 to-white">
+            <p className="text-[10px] sm:text-xs uppercase tracking-wider font-bold text-amber-800 truncate">
+              Total Lifetime Value
+            </p>
+            <p className="font-sans text-xl sm:text-3xl font-extrabold text-amber-700 mt-1">
+              {formatCurrencyINR(totalRevenue)}
+            </p>
+          </Card>
+        )}
       </div>
 
       {/* Toolbar: Search & View Toggle */}
@@ -450,12 +484,14 @@ export default function CustomersPage() {
                           {c.rentals}
                         </span>
                       </div>
-                      <div>
-                        <span className="text-[11px] font-semibold text-slate-500 mr-1">Spent:</span>
-                        <span className="font-extrabold text-amber-900 bg-amber-100/70 border border-amber-200 px-2 py-0.5 rounded text-xs">
-                          {formatCurrencyINR(c.totalSpent)}
-                        </span>
-                      </div>
+                      {canViewLifetimeValue && (
+                        <div>
+                          <span className="text-[11px] font-semibold text-slate-500 mr-1">Spent:</span>
+                          <span className="font-extrabold text-amber-900 bg-amber-100/70 border border-amber-200 px-2 py-0.5 rounded text-xs">
+                            {formatCurrencyINR(c.totalSpent)}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -490,9 +526,11 @@ export default function CustomersPage() {
                     <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-800 py-4 text-center">
                       Rentals
                     </TableHead>
-                    <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-800 py-4 text-right">
-                      Lifetime Spent
-                    </TableHead>
+                    {canViewLifetimeValue && (
+                      <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-800 py-4 text-right">
+                        Lifetime Spent
+                      </TableHead>
+                    )}
                     <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-800 py-4 text-right pr-5">
                       Actions
                     </TableHead>
@@ -501,7 +539,7 @@ export default function CustomersPage() {
                 <TableBody>
                   {filteredCustomers.length === 0 ? (
                     <TableRow className="border-border hover:bg-transparent">
-                      <TableCell colSpan={9} className="py-12 text-center text-slate-600">
+                      <TableCell colSpan={canViewLifetimeValue ? 9 : 8} className="py-12 text-center text-slate-600">
                         <div className="flex flex-col items-center justify-center gap-1">
                           <p className="font-sans text-base text-slate-900 font-bold">
                             No clients found
@@ -607,11 +645,13 @@ export default function CustomersPage() {
                             {c.rentals}
                           </span>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <span className="inline-block font-sans font-bold text-sm text-amber-900 bg-amber-50 border border-amber-200 px-3 py-1 rounded-md">
-                            {formatCurrencyINR(c.totalSpent)}
-                          </span>
-                        </TableCell>
+                        {canViewLifetimeValue && (
+                          <TableCell className="text-right">
+                            <span className="inline-block font-sans font-bold text-sm text-amber-900 bg-amber-50 border border-amber-200 px-3 py-1 rounded-md">
+                              {formatCurrencyINR(c.totalSpent)}
+                            </span>
+                          </TableCell>
+                        )}
                         <TableCell className="text-right pr-5">
                           <div className="flex items-center justify-end gap-1.5">
                             {/* See Profile Button */}

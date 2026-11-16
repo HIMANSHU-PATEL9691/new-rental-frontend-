@@ -201,6 +201,9 @@ export function EditRentalDialog({
   const [addClientOpen, setAddClientOpen] = useState(false);
   const [activePieceIndex, setActivePieceIndex] = useState(0);
 
+  const userRole = (typeof window !== "undefined" ? localStorage.getItem("user_role") || "" : "").toLowerCase();
+  const canSeeFinancials = ["admin", "superadmin", "super_admin"].includes(userRole);
+
   const relatedRentals = useMemo(() => {
     if (rental.billNo) {
       return rentals.filter((r) => r.billNo === rental.billNo);
@@ -1884,29 +1887,37 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
             </div>
 
             {/* Summary Footer */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+            <div className={`grid grid-cols-1 ${canSeeFinancials ? "md:grid-cols-2" : ""} gap-4 mt-2`}>
               <div className="rounded-md border border-border bg-secondary/40 px-4 py-3 flex items-center justify-between">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground">
-                    Computed total (Bill)
+                    {canSeeFinancials ? "Computed total (Bill)" : "Order Summary"}
                   </p>
                   <div className="flex items-center gap-3 mt-0.5">
-                    <p className="font-display text-2xl text-gold">{formatCurrencyINR(aggTotal)}</p>
-                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-red-500/10 text-red-500 border border-red-500/20">
-                      Balance: {formatCurrencyINR(aggFinalDue)}
-                    </span>
+                    {canSeeFinancials ? (
+                      <>
+                        <p className="font-display text-2xl text-gold">{formatCurrencyINR(aggTotal)}</p>
+                        <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-red-500/10 text-red-500 border border-red-500/20">
+                          Balance: {formatCurrencyINR(aggFinalDue)}
+                        </span>
+                      </>
+                    ) : (
+                      <p className="font-semibold text-lg text-foreground">{form.pieces.length} piece(s)</p>
+                    )}
                   </div>
                   <div className="text-[11px] text-muted-foreground mt-1 space-y-0.5">
-                    <p>{form.pieces.length} piece(s)</p>
-                    <p>Security refund: {formatCurrencyINR(aggSecurityRefundDue)}</p>
+                    {canSeeFinancials && <p>{form.pieces.length} piece(s)</p>}
+                    {canSeeFinancials && <p>Security refund: {formatCurrencyINR(aggSecurityRefundDue)}</p>}
                     {form.securityReturned ? <p className="text-emerald-600">Security clear</p> : null}
                   </div>
                 </div>
-                <div className="text-right text-xs text-muted-foreground">
-                  Total Rent: {formatCurrencyINR(aggSubtotal)}
-                  <br />
-                  Total Bill: {formatCurrencyINR(aggTotal)}
-                </div>
+                {canSeeFinancials && (
+                  <div className="text-right text-xs text-muted-foreground">
+                    Total Rent: {formatCurrencyINR(aggSubtotal)}
+                    <br />
+                    Total Bill: {formatCurrencyINR(aggTotal)}
+                  </div>
+                )}
               </div>
 
               <div className="rounded-md border border-border bg-secondary/40 px-4 py-3 flex flex-col justify-between">
@@ -1918,41 +1929,43 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
                   </div>
 
                   {/* Total Rental Balance Breakdown */}
-                  <div className="border-t border-border/50 pt-3 space-y-2">
-                    <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground font-semibold">
-                      Total Rental Balance
-                    </p>
-                    <div className="space-y-1 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Total Rental:</span>
-                        <span className="font-semibold text-gold">{formatCurrencyINR(aggSubtotal)}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Security Deposit:</span>
-                        <span className="font-semibold text-gold">{formatCurrencyINR(aggSecurity)}</span>
-                      </div>
-                      <div className="flex items-center justify-between border-t border-border/50 pt-1">
-                        <span className="text-muted-foreground">Total Bill:</span>
-                        <span className="font-semibold text-gold">{formatCurrencyINR(aggTotal)}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Amount Paid:</span>
-                        <span className="font-semibold text-emerald-600">-{formatCurrencyINR(aggAdvance)}</span>
-                      </div>
-                      <div className="flex items-center justify-between bg-red-500/10 px-2 py-1 rounded border border-red-500/20">
-                        <span className="text-red-600 font-semibold">Balance Due:</span>
-                        <span className="font-bold text-red-600">{formatCurrencyINR(aggFinalDue)}</span>
-                      </div>
-                      {aggSecurityRefundDue > 0 && (
-                        <div className="flex items-center justify-between pt-1 border-t border-border/50">
-                          <span className="text-muted-foreground">Security Refund Due:</span>
-                          <span className="font-semibold text-amber-600">
-                            {formatCurrencyINR(aggSecurityRefundDue)}
-                          </span>
+                  {canSeeFinancials && (
+                    <div className="border-t border-border/50 pt-3 space-y-2">
+                      <p className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground font-semibold">
+                        Total Rental Balance
+                      </p>
+                      <div className="space-y-1 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Total Rental:</span>
+                          <span className="font-semibold text-gold">{formatCurrencyINR(aggSubtotal)}</span>
                         </div>
-                      )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Security Deposit:</span>
+                          <span className="font-semibold text-gold">{formatCurrencyINR(aggSecurity)}</span>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-border/50 pt-1">
+                          <span className="text-muted-foreground">Total Bill:</span>
+                          <span className="font-semibold text-gold">{formatCurrencyINR(aggTotal)}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Amount Paid:</span>
+                          <span className="font-semibold text-emerald-600">-{formatCurrencyINR(aggAdvance)}</span>
+                        </div>
+                        <div className="flex items-center justify-between bg-red-500/10 px-2 py-1 rounded border border-red-500/20">
+                          <span className="text-red-600 font-semibold">Balance Due:</span>
+                          <span className="font-bold text-red-600">{formatCurrencyINR(aggFinalDue)}</span>
+                        </div>
+                        {aggSecurityRefundDue > 0 && (
+                          <div className="flex items-center justify-between pt-1 border-t border-border/50">
+                            <span className="text-muted-foreground">Security Refund Due:</span>
+                            <span className="font-semibold text-amber-600">
+                              {formatCurrencyINR(aggSecurityRefundDue)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap justify-end gap-1.5 mt-3 pt-3 border-t border-border/50">

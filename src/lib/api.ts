@@ -137,7 +137,7 @@ export interface User {
   phone?: string;
   password?: string;
   rawPassword?: string;
-  role: 'admin' | 'employee' | 'reception';
+  role: 'admin' | 'employee' | 'reception' | 'superadmin' | 'super_admin';
   status?: 'active' | 'pending' | 'disabled';
   branch?: string;
 }
@@ -161,7 +161,7 @@ async function apiRequest<T>(url: string, options?: RequestInit): Promise<T> {
 
   // Hardening: only allow known role headers from client.
   const normalizedRole = role ? String(role).trim().toLowerCase() : undefined;
-  const safeRole = normalizedRole && ['admin', 'reception', 'employee'].includes(normalizedRole) ? normalizedRole : undefined;
+  const safeRole = normalizedRole && ['admin', 'superadmin', 'super_admin', 'reception', 'employee'].includes(normalizedRole) ? normalizedRole : undefined;
 
 
   let logBody: unknown = '';
