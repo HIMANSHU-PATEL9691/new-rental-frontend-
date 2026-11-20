@@ -65,7 +65,7 @@ export function CustomerProfileDialog({
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const userRole = (typeof window !== "undefined" ? localStorage.getItem("user_role") || "" : "").toLowerCase();
-  const canSeeFinancials = ["admin", "superadmin", "super_admin"].includes(userRole);
+  const canSeeFinancials = ["admin", "superadmin", "super_admin", "reception", "employee"].includes(userRole);
 
   const isControlled = open !== undefined;
   const isOpen = isControlled ? open : internalOpen;

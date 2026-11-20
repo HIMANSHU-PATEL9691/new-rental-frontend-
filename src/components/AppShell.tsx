@@ -64,7 +64,7 @@ const nav = [
   { to: "/customers", label: "Customers", icon: Users, exact: false, roles: ["admin", "superadmin", "super_admin", "reception", "employee"] },
   { to: "/availability", label: "Availability", icon: CalendarCheck, exact: false, roles: ["admin", "superadmin", "super_admin", "employee", "reception"] },
   { to: "/deliveries", label: "Deliveries", icon: Package, exact: false, roles: ["admin", "superadmin", "super_admin", "employee", "reception"] },
-  { to: "/return-items", label: "Return Items", icon: Clock, exact: false, roles: ["admin", "superadmin", "super_admin", "reception"] },
+  { to: "/return-items", label: "Return Items", icon: Clock, exact: false, roles: ["admin", "superadmin", "super_admin", "reception", "employee"] },
   { to: "/calendar", label: "Calendar", icon: CalendarDays, exact: false, roles: ["admin", "superadmin", "super_admin", "employee", "reception"] },
   { to: "/reports", label: "Reports", icon: FileText, exact: false, roles: ["admin", "superadmin", "super_admin"] },
   { to: "/settings", label: "Settings", icon: Settings, exact: false, roles: ["admin", "superadmin", "super_admin", "reception", "employee"] },

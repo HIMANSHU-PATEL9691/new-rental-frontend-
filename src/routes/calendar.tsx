@@ -431,39 +431,26 @@ export default function CalendarPage() {
       selectedEvents: selectedEvents.length,
     });
     const exportData = selectedEvents.map((e) => {
-      const item = getItem(e.itemId);
       const customer = getCustomer(e.customerId);
       return {
         "Bill No": e.billNo || e.id,
         "Customer": customer?.name || "Unknown",
         "Phone": customer?.phone || "-",
         "Item No": e.itemNo || e.itemId,
-        "Piece / Item": item?.name || "Unknown",
         "Start Date": formatDate(e.startDate) || "-",
         "End Date": formatDate(e.endDate) || "-",
-        "Delivery Date": formatDate(e.deliveryDate || e.startDate),
-        Status: e.status,
-        Remark: e.remark || "-",
-        "Confirmed By": (e as any).remarkConfirmedBy || "-",
-        "Admin Recheck": (e as any).adminReconfirmed ? "Recheck is done by admin" : "-",
-        "Admin Recheck By": (e as any).adminReconfirmedBy || "-",
+        "Remark": e.remark || "-",
       };
     });
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     worksheet["!cols"] = [
-      { wch: 14 },
-      { wch: 18 },
-      { wch: 14 },
-      { wch: 14 },
-      { wch: 20 },
-      { wch: 14 },
-      { wch: 14 },
-      { wch: 14 },
-      { wch: 12 },
-      { wch: 25 },
-      { wch: 16 },
-      { wch: 24 },
-      { wch: 16 },
+      { wch: 16 }, // Bill No
+      { wch: 22 }, // Customer
+      { wch: 16 }, // Phone
+      { wch: 16 }, // Item No
+      { wch: 15 }, // Start Date
+      { wch: 15 }, // End Date
+      { wch: 40 }, // Remark
     ];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Bookings");

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Printer, Receipt, Download, MessageSquare, Eye, FileText, CheckCircle } from "lucide-react";
 import { useStore } from "@/data/store";
-import { formatCurrencyINR } from "@/lib/utils";
+import { formatCurrencyINR, getBillSecurity } from "@/lib/utils";
 import { formatImageUrl } from "@/lib/api";
 import { toast } from "sonner";
 import html2canvas from "html2canvas";
@@ -99,8 +99,6 @@ export function ViewInvoiceDialog({
   const piecesData = useMemo(() => {
     let aggSubtotal = 0;
     let aggAdvance = 0;
-    let aggSecurity = 0;
-    let aggSecurityRefundDue = 0;
     let aggDiscount = 0;
     let aggPenalty = 0;
 
@@ -120,15 +118,8 @@ export function ViewInvoiceDialog({
 
       aggSubtotal += rSubtotal;
       aggAdvance += Number(r.advance) || 0;
-      aggSecurity += Number(r.securityAmount) || 0;
       aggDiscount += Number(r.discount) || 0;
       aggPenalty += Number(r.penalty) || 0;
-
-      const rSecReturned = Boolean((r as any).securityReturned);
-      const rSecAmt = Number(r.securityAmount) || 0;
-      if (!(r.status === "returned" && rSecReturned)) {
-        aggSecurityRefundDue += rSecAmt;
-      }
 
       return {
         r,
@@ -146,6 +137,10 @@ export function ViewInvoiceDialog({
         rLostQuantity,
       };
     });
+
+    const aggSecurity = getBillSecurity(relatedRentals);
+    const hasBeenRefunded = relatedRentals.some((r) => Boolean((r as any).securityReturned));
+    const aggSecurityRefundDue = hasBeenRefunded ? 0 : aggSecurity;
 
     const aggTotal = aggSubtotal + aggSecurity + aggPenalty - aggDiscount;
     const aggFinalDue = Math.max(0, aggTotal - aggAdvance);

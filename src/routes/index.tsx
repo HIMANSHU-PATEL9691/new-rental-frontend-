@@ -2,7 +2,7 @@ import { useMemo, useEffect } from "react";
 import { AppShell } from "@/components/AppShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useStore } from "@/data/store";
-import { formatCurrencyINR } from "@/lib/utils";
+import { formatCurrencyINR, getBillSecurity, calculateRefundSummary } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ResponsiveContainer,
@@ -24,6 +24,7 @@ import {
   Banknote,
   CalendarCheck,
   Clock,
+  RotateCcw,
 } from "lucide-react";
 import heroImg from "@/assets/hero-velvet.jpg";
 
@@ -41,18 +42,21 @@ function isSafaItem(item: any) {
 function getDueAmount(rental: any, allRentals: any[] = []) {
   if (rental.billNo && allRentals.length > 0) {
     const relatedRentals = allRentals.filter((r) => r.billNo === rental.billNo);
-    let aggTotal = 0;
+    const billSec = getBillSecurity(relatedRentals);
+    let aggRent = 0;
     let aggAdvance = 0;
     for (const r of relatedRentals) {
-      aggTotal += (Number(r.total) || 0) + (Number(r.securityAmount) || 0) + (Number(r.penalty) || 0) - (Number(r.discount) || 0);
+      aggRent += (Number(r.total) || 0) + (Number(r.penalty) || 0) - (Number(r.discount) || 0);
       aggAdvance += Number(r.advance) || 0;
     }
-    return Math.max(0, aggTotal - aggAdvance);
+    const totalBill = aggRent + billSec;
+    return Math.max(0, totalBill - aggAdvance);
   }
+  const sec = Number(rental.billSecurityAmount) || Number(rental.securityAmount) || 0;
   return Math.max(
     0,
     (Number(rental.total) || 0) +
-      (Number(rental.securityAmount) || 0) +
+      sec +
       (Number(rental.penalty) || 0) -
       (Number(rental.discount) || 0) -
       (Number(rental.advance) || 0),
@@ -164,6 +168,7 @@ export default function DashboardPage() {
       .filter((r) => safaItemIds.has(r.itemId))
       .reduce((sum, rental) => sum + (Number((rental as any).lostQuantity) || 0), 0);
     const safaAvailable = Math.max(0, safaStock - safaBooked);
+    const refundSummary = calculateRefundSummary(rentals);
 
     const stats = [
       {
@@ -213,6 +218,22 @@ export default function DashboardPage() {
         icon: Clock,
         to: "/due-products",
         search: `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`,
+      },
+      {
+        label: "Total Refund",
+        value: formatCurrencyINR(refundSummary.total),
+        helper: `Pending: ${formatCurrencyINR(refundSummary.pending)} | Done: ${formatCurrencyINR(refundSummary.completed)}`,
+        icon: RotateCcw,
+        to: "/rentals",
+        search: "",
+      },
+      {
+        label: "Pending Refund",
+        value: formatCurrencyINR(refundSummary.pending),
+        helper: refundSummary.eligible > 0 ? `${formatCurrencyINR(refundSummary.eligible)} eligible for payout` : "Awaiting item returns",
+        icon: Clock,
+        to: "/rentals",
+        search: "",
       },
       {
         label: "Live Rentals",
@@ -321,6 +342,7 @@ export default function DashboardPage() {
       safaBooked,
       safaLost,
       safaAvailable,
+      refundSummary,
     };
   }, [customers, currentMonth, currentYear, items, rentals, todayStr]);
 
@@ -436,6 +458,95 @@ export default function DashboardPage() {
             </Card>
           );
         })}
+      </section>
+
+      {/* Security Refund Overview - Admin Financial Monitor */}
+      <section className="mb-8 sm:mb-10">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-gold font-bold">Financial Overview</p>
+            <h2 className="text-lg sm:text-xl font-display font-semibold mt-0.5 text-foreground">
+              Security Refund Liability
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={() => openDashboardData("/rentals", "")}
+            className="text-xs font-semibold text-gold hover:underline cursor-pointer"
+          >
+            View in Ledger →
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          <Card 
+            role="button"
+            tabIndex={0}
+            onClick={() => openDashboardData("/rentals", "")}
+            className="glass-panel p-4 sm:p-5 border-amber-500/30 bg-amber-500/5 cursor-pointer hover:bg-amber-500/10 transition-colors"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase tracking-wider font-semibold text-amber-700">
+                Pending Refund
+              </span>
+              <span className="text-[10px] font-semibold text-amber-800 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                Waiting Return
+              </span>
+            </div>
+            <div className="font-sans text-2xl sm:text-3xl font-bold mt-2 text-amber-700 tracking-tight">
+              {formatCurrencyINR(dashboardStats.refundSummary.pending)}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              {dashboardStats.refundSummary.eligible > 0
+                ? `${formatCurrencyINR(dashboardStats.refundSummary.eligible)} eligible for immediate payout`
+                : "Awaiting final item returns from customers"}
+            </p>
+          </Card>
+
+          <Card 
+            role="button"
+            tabIndex={0}
+            onClick={() => openDashboardData("/rentals", "")}
+            className="glass-panel p-4 sm:p-5 border-emerald-500/30 bg-emerald-500/5 cursor-pointer hover:bg-emerald-500/10 transition-colors"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase tracking-wider font-semibold text-emerald-700">
+                Completed Refund
+              </span>
+              <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                Refunded
+              </span>
+            </div>
+            <div className="font-sans text-2xl sm:text-3xl font-bold mt-2 text-emerald-700 tracking-tight">
+              {formatCurrencyINR(dashboardStats.refundSummary.completed)}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Successfully refunded to clients
+            </p>
+          </Card>
+
+          <Card 
+            role="button"
+            tabIndex={0}
+            onClick={() => openDashboardData("/rentals", "")}
+            className="glass-panel p-4 sm:p-5 border-gold/40 bg-gold/10 cursor-pointer hover:bg-gold/15 transition-colors"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase tracking-wider font-semibold text-gold font-bold">
+                Total Refund
+              </span>
+              <span className="text-[10px] font-semibold text-gold bg-gold/20 border border-gold/30 px-2 py-0.5 rounded-full">
+                Total Liability
+              </span>
+            </div>
+            <div className="font-sans text-2xl sm:text-3xl font-bold mt-2 text-foreground tracking-tight">
+              {formatCurrencyINR(dashboardStats.refundSummary.total)}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Bill-level security across all bookings
+            </p>
+          </Card>
+        </div>
       </section>
 
       <section className="mb-8 grid gap-4 sm:mb-10 sm:gap-6 lg:grid-cols-3">

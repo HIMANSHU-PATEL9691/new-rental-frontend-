@@ -17,7 +17,7 @@ export default function RouteComponent() {
     const role = (localStorage.getItem("user_role") || "").toLowerCase();
     if (!role) {
       navigate({ to: "/login" });
-    } else if (!["admin", "superadmin", "super_admin", "reception"].includes(role)) {
+    } else if (!["admin", "superadmin", "super_admin", "reception", "employee"].includes(role)) {
       navigate({ to: "/availability" });
     }
   }, []);

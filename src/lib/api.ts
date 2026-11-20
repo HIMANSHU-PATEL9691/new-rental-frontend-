@@ -113,6 +113,7 @@ export interface Rental {
   adminReconfirmedAt?: string;
   advance: number;
   securityAmount: number;
+  billSecurityAmount?: number;
   securityReturned?: boolean;
   securityReturnedAt?: string;
   signature?: string;

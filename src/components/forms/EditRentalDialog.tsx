@@ -26,7 +26,7 @@ import {
 
 import { Plus, Calendar, Trash2 } from "lucide-react";
 import { useStore } from "@/data/store";
-import { formatCurrencyINR } from "@/lib/utils";
+import { formatCurrencyINR, getBillSecurity } from "@/lib/utils";
 
 import type { Rental, RentalStatus } from "@/data/mock";
 import { formatImageUrl } from "@/lib/api";
@@ -202,7 +202,7 @@ export function EditRentalDialog({
   const [activePieceIndex, setActivePieceIndex] = useState(0);
 
   const userRole = (typeof window !== "undefined" ? localStorage.getItem("user_role") || "" : "").toLowerCase();
-  const canSeeFinancials = ["admin", "superadmin", "super_admin"].includes(userRole);
+  const canSeeFinancials = ["admin", "superadmin", "super_admin", "reception", "employee"].includes(userRole);
 
   const relatedRentals = useMemo(() => {
     if (rental.billNo) {
@@ -270,7 +270,7 @@ export function EditRentalDialog({
   useEffect(() => {
     if (open) {
       const totalAdvance = relatedRentals.reduce((sum, r) => sum + (r.advance ?? 0), 0);
-      const totalSecurity = relatedRentals.reduce((sum, r) => sum + (r.securityAmount ?? 0), 0);
+      const totalSecurity = getBillSecurity(relatedRentals);
 
       const piecesData = relatedRentals.map((r) => {
         const rItem = getItem(r.itemId) || findItemByCode(items, r.itemNo) || items.find((it) => it.customId === r.itemId || it.customId === r.itemNo);
@@ -1032,10 +1032,17 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
 
       const piecesTotal = piecesData.reduce((acc, p) => acc + p.lineTotal, 0);
 
-      const updatePromises = piecesData.map(async (p) => {
+      const updatePromises = piecesData.map(async (p, idx) => {
         const ratio = piecesTotal > 0 ? p.lineTotal / piecesTotal : 1 / piecesData.length;
         const pieceAdvance = Math.round(parsed.data.advance * ratio);
-        const pieceSecurity = Math.round(parsed.data.securityAmount * ratio);
+        const totalSec = Number(parsed.data.securityAmount) || 0;
+        const isLastPiece = idx === piecesData.length - 1;
+        const pieceSecReturned = piecesData.length === 1
+          ? Boolean(parsed.data.securityReturned)
+          : (parsed.data.status === "returned" && Boolean(parsed.data.securityReturned) && isLastPiece);
+        const pieceSecAmount = piecesData.length === 1
+          ? totalSec
+          : (pieceSecReturned ? totalSec : 0);
 
         const payload: any = {
           billNo: parsed.data.billNo ?? "",
@@ -1052,9 +1059,10 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
           quantity: p.quantity,
           lostQuantity: p.lostQuantity,
           advance: pieceAdvance,
-          securityAmount: pieceSecurity,
-          securityReturned: parsed.data.securityReturned ?? false,
-          ...(parsed.data.securityReturned ? { securityReturnedAt: new Date().toISOString() } : {}),
+          billSecurityAmount: totalSec,
+          securityAmount: pieceSecAmount,
+          securityReturned: pieceSecReturned,
+          ...(pieceSecReturned ? { securityReturnedAt: new Date().toISOString() } : {}),
           remarkCompleted: p.remarkCompleted ?? false,
           remarkConfirmedBy: p.remarkConfirmedBy ?? "",
           fittingCompleted: p.fittingCompleted ?? false,

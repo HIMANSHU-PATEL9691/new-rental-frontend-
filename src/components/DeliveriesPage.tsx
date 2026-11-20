@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "@/data/store";
-import { formatCurrencyINR } from "@/lib/utils";
+import { formatCurrencyINR, getBillSecurity, getItemRefundSecurityDisplay, getBillRefundSecurityStatus } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Package, CheckCircle, Calendar, ArrowDownLeft, Search, Clock } from "lucide-react";
@@ -32,18 +32,21 @@ function formatDate(dateStr: string) {
 function getDueAmount(rental: any, allRentals: any[] = []) {
   if (rental.billNo && allRentals.length > 0) {
     const relatedRentals = allRentals.filter((r) => r.billNo === rental.billNo);
-    let aggTotal = 0;
+    const billSec = getBillSecurity(relatedRentals);
+    let aggRent = 0;
     let aggAdvance = 0;
     for (const r of relatedRentals) {
-      aggTotal += (Number(r.total) || 0) + (Number(r.securityAmount) || 0) + (Number(r.penalty) || 0) - (Number(r.discount) || 0);
+      aggRent += (Number(r.total) || 0) + (Number(r.penalty) || 0) - (Number(r.discount) || 0);
       aggAdvance += Number(r.advance) || 0;
     }
-    return Math.max(0, aggTotal - aggAdvance);
+    const totalBill = aggRent + billSec;
+    return Math.max(0, totalBill - aggAdvance);
   }
+  const sec = Number(rental.billSecurityAmount) || Number(rental.securityAmount) || 0;
   return Math.max(
     0,
     (Number(rental.total) || 0) +
-      (Number(rental.securityAmount) || 0) +
+      sec +
       (Number(rental.penalty) || 0) -
       (Number(rental.discount) || 0) -
       (Number(rental.advance) || 0),
@@ -52,20 +55,38 @@ function getDueAmount(rental: any, allRentals: any[] = []) {
 
 export function DeliveriesPage() {
   const { rentals, items, customers, updateRental, getItem, getCustomer } = useStore();
-  const storedRole = typeof window !== 'undefined' ? localStorage.getItem("user_role")?.trim().toLowerCase() || "" : "";
-  const [role, setRole] = useState(storedRole);
+  const getStoredRole = () =>
+    (typeof window !== "undefined" && window.localStorage
+      ? localStorage.getItem("user_role") || ""
+      : ""
+    )
+      .trim()
+      .toLowerCase();
+
+  const [role, setRole] = useState(getStoredRole);
   const [selectedDate, setSelectedDate] = useState(() => today());
   const [statusFilter, setStatusFilter] = useState("all");
   const [localSearch, setLocalSearch] = useState("");
   const [updating, setUpdating] = useState<string | null>(null);
-  const canUpdateDeliveries = ["admin", "superadmin", "super_admin", "reception"].includes(role);
-  const canSeeFinancials = ["admin", "superadmin", "super_admin"].includes(role);
 
   useEffect(() => {
-    if (!role) {
-      setRole(localStorage.getItem("user_role")?.trim().toLowerCase() || "");
-    }
-  }, [role]);
+    const handleStorageChange = () => {
+      setRole(getStoredRole());
+    };
+    window.addEventListener("storage", handleStorageChange);
+    window.addEventListener("focus", handleStorageChange);
+    window.addEventListener("popstate", handleStorageChange);
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("focus", handleStorageChange);
+      window.removeEventListener("popstate", handleStorageChange);
+    };
+  }, []);
+
+  const currentRole = (role || getStoredRole()).trim().toLowerCase();
+  const canUpdateDeliveries = ["admin", "superadmin", "super_admin", "reception"].includes(currentRole);
+  const canSeeFinancials = ["admin", "superadmin", "super_admin", "reception", "employee"].includes(currentRole);
+  const canSeeTotalAndPaid = ["admin", "superadmin", "super_admin"].includes(currentRole);
 
   const deliveriesList = useMemo(() => {
     const query = localSearch.trim().toLowerCase();
@@ -147,12 +168,11 @@ export function DeliveriesPage() {
     }
 
     const relatedRentals = rental.billNo ? rentals.filter((r) => r.billNo === rental.billNo) : [rental];
+    const aggSecurity = getBillSecurity(relatedRentals);
     let aggRent = 0;
-    let aggSecurity = 0;
     let aggAdvance = 0;
     for (const r of relatedRentals) {
       aggRent += (Number(r.total) || 0) + (Number(r.penalty) || 0) - (Number(r.discount) || 0);
-      aggSecurity += Number(r.securityAmount) || 0;
       aggAdvance += Number(r.advance) || 0;
     }
     const totalBill = aggRent + aggSecurity;
@@ -187,17 +207,24 @@ export function DeliveriesPage() {
 
   const handleReturn = (rental: any) => {
     const relatedRentals = rental.billNo ? rentals.filter((r) => r.billNo === rental.billNo) : [rental];
+    const aggSecurity = getBillSecurity(relatedRentals);
     let aggRent = 0;
-    let aggSecurity = 0;
     let aggAdvance = 0;
     for (const r of relatedRentals) {
       aggRent += (Number(r.total) || 0) + (Number(r.penalty) || 0) - (Number(r.discount) || 0);
-      aggSecurity += Number(r.securityAmount) || 0;
       aggAdvance += Number(r.advance) || 0;
     }
     const totalBill = aggRent + aggSecurity;
     const balance = Math.max(0, totalBill - aggAdvance);
-    const securityToRefund = (rental.securityAmount || 0) > 0 && !(rental as any).securityReturned ? rental.securityAmount : 0;
+
+    const otherPending = relatedRentals.filter(
+      (r) => (r.id !== rental.id && (r as any)._id !== rental.id && (r as any)._id !== (rental as any)._id) && r.status !== "returned"
+    );
+    const isLastItemToReturn = otherPending.length === 0;
+    const alreadyRefunded = relatedRentals.some((r) => Boolean((r as any).securityReturned));
+    const securityToRefund = (isLastItemToReturn && !alreadyRefunded && aggSecurity > 0)
+      ? aggSecurity
+      : 0;
     
     let msg = `Are you sure you want to mark this product as returned?\n\n`;
     if (canSeeFinancials) {
@@ -213,6 +240,8 @@ export function DeliveriesPage() {
       }
       if (securityToRefund > 0) {
         msg += `\nSecurity Deposit to refund: ${formatCurrencyINR(securityToRefund)}`;
+      } else if (aggSecurity > 0 && !isLastItemToReturn) {
+        msg += `\nSecurity Deposit to refund: ₹0 (${otherPending.length} item(s) pending return under this bill)`;
       }
       msg += `\n\nAre all dues (balance & security) clear? Clicking OK will update and clear the amounts.`;
     } else {
@@ -228,6 +257,14 @@ export function DeliveriesPage() {
       if (securityToRefund > 0) {
         updates.securityReturned = true;
         updates.securityReturnedAt = new Date().toISOString();
+        updates.securityAmount = securityToRefund;
+        updates.billSecurityAmount = aggSecurity;
+      } else {
+        updates.securityReturned = false;
+        updates.securityAmount = 0;
+        if (aggSecurity > 0) {
+          updates.billSecurityAmount = aggSecurity;
+        }
       }
       handleStatusUpdate({ ...rental, ...updates }, "returned", "Product marked as returned!");
     }
@@ -381,9 +418,52 @@ export function DeliveriesPage() {
                     </div>
                   </div>
 
-                  {canSeeFinancials && dueAmount > 0 && (
-                    <div className="text-xs font-semibold text-destructive">
-                      Due: {formatCurrencyINR(dueAmount)}
+                  {canSeeFinancials && (
+                    <div className="bg-secondary/20 p-2 rounded-md space-y-1 text-xs">
+                      {canSeeTotalAndPaid && Number(rental.total) > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Total:</span>
+                          <span className="font-semibold text-foreground">{formatCurrencyINR(rental.total)}</span>
+                        </div>
+                      )}
+                      {canSeeTotalAndPaid && Number(rental.advance) > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Paid:</span>
+                          <span className="font-medium text-emerald-700">{formatCurrencyINR(rental.advance)}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Due:</span>
+                        <span className={`font-semibold ${dueAmount > 0 ? "text-destructive" : "text-emerald-600"}`}>
+                          {formatCurrencyINR(dueAmount)}
+                        </span>
+                      </div>
+                      {(() => {
+                        const refundSec = getItemRefundSecurityDisplay(rental, rentals);
+                        const relatedRentals = rental.billNo ? rentals.filter((r) => r.billNo === rental.billNo) : [rental];
+                        const refStatus = getBillRefundSecurityStatus(relatedRentals);
+                        return refundSec > 0 ? (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Refund Sec:</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-medium text-amber-600">{formatCurrencyINR(refundSec)}</span>
+                              {refStatus !== "None" && (
+                                <span
+                                  className={`text-[9px] px-1.5 py-0.2 rounded-full font-semibold border ${
+                                    refStatus === "Refunded"
+                                      ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
+                                      : refStatus === "Eligible"
+                                      ? "bg-blue-500/10 text-blue-700 border-blue-500/20"
+                                      : "bg-amber-500/10 text-amber-700 border-amber-500/20"
+                                  }`}
+                                >
+                                  {refStatus}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ) : null;
+                      })()}
                     </div>
                   )}
 
@@ -430,14 +510,42 @@ export function DeliveriesPage() {
                         <div>{rental.billNo || rental.id}</div>
                         {canSeeFinancials && (
                           <div className="mt-1.5 flex flex-col gap-0.5">
-                            <div className={`text-xs ${rental.status !== 'active' && dueAmount > 0 ? "text-destructive font-medium" : "text-muted-foreground font-normal"}`}>
-                              Due: {formatCurrencyINR(rental.status === 'active' ? 0 : dueAmount)}
-                            </div>
-                            {(rental.securityAmount || 0) > 0 && !(rental as any).securityReturned && (
-                              <div className="text-xs font-medium text-amber-600">
-                                Refund Security: {formatCurrencyINR(rental.securityAmount || 0)}
+                            {canSeeTotalAndPaid && Number(rental.total) > 0 && (
+                              <div className="text-xs font-semibold text-foreground">
+                                Total: {formatCurrencyINR(rental.total)}
                               </div>
                             )}
+                            {canSeeTotalAndPaid && Number(rental.advance) > 0 && (
+                              <div className="text-[11px] text-emerald-700 font-medium">
+                                Paid: {formatCurrencyINR(rental.advance)}
+                              </div>
+                            )}
+                            <div className={`text-xs ${dueAmount > 0 ? "text-destructive font-medium" : "text-emerald-600 font-normal"}`}>
+                              Due: {formatCurrencyINR(dueAmount)}
+                            </div>
+                            {(() => {
+                              const refundSec = getItemRefundSecurityDisplay(rental, rentals);
+                              const relatedRentals = rental.billNo ? rentals.filter((r) => r.billNo === rental.billNo) : [rental];
+                              const refStatus = getBillRefundSecurityStatus(relatedRentals);
+                              return refundSec > 0 ? (
+                                <div className="text-xs font-medium text-amber-600 flex items-center gap-1.5">
+                                  <span>Refund Security: {formatCurrencyINR(refundSec)}</span>
+                                  {refStatus !== "None" && (
+                                    <span
+                                      className={`text-[9px] px-1.5 py-0.2 rounded-full font-semibold border ${
+                                        refStatus === "Refunded"
+                                          ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
+                                          : refStatus === "Eligible"
+                                          ? "bg-blue-500/10 text-blue-700 border-blue-500/20"
+                                          : "bg-amber-500/10 text-amber-700 border-amber-500/20"
+                                      }`}
+                                    >
+                                      {refStatus}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : null;
+                            })()}
                           </div>
                         )}
                       </td>
