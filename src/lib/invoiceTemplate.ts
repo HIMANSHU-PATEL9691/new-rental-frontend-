@@ -51,11 +51,14 @@ export function getInvoiceContent({
   piecesTotal: number;
   balanceDue: number;
 }) {
-  const totalCollected = (form.advance || 0) + (form.securityAmount || 0);
-  const totalBillAmount = Math.max(0, piecesTotal + (form.securityAmount || 0) - (form.discount || 0));
-  const securityRefundDue = form.status === "returned" && form.securityReturned
-    ? 0
-    : form.securityAmount || 0;
+  const securityDeposit = form.securityAmount || 0;
+  const securityRefund = (form as any).securityRefundAmount != null && Number((form as any).securityRefundAmount) > 0
+    ? Number((form as any).securityRefundAmount)
+    : (form.securityReturned ? securityDeposit : 0);
+  const remainingSecurity = Math.max(0, securityDeposit - securityRefund);
+  const totalCollected = (form.advance || 0) + securityDeposit;
+  const totalBillAmount = Math.max(0, piecesTotal + securityDeposit - (form.discount || 0));
+  const securityRefundDue = securityRefund;
 
   return `
       <style>
@@ -113,13 +116,13 @@ export function getInvoiceContent({
           <div class="invoice-title">
             <h2>
               ${(() => {
-                const status = (form?.status || "upcoming").toLowerCase();
-                if (status === "upcoming") return "Booking Invoice";
-                if (status === "active") return "Delivery Invoice";
-                if (status === "returned") return "Final Invoice";
-                if (status === "overdue") return "Overdue Final Bill";
-                return "Invoice";
-              })()}
+      const status = (form?.status || "upcoming").toLowerCase();
+      if (status === "upcoming") return "Booking Invoice";
+      if (status === "active") return "Delivery Invoice";
+      if (status === "returned") return "Final Invoice";
+      if (status === "overdue") return "Overdue Final Bill";
+      return "Invoice";
+    })()}
             </h2>
             <p># ${form.billNo || "DRAFT"}</p>
             <p>Date: ${form?.billMakingDate ? new Date(form.billMakingDate).toLocaleDateString('en-IN') : (form as any)?.createdAt ? new Date((form as any).createdAt).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN')}</p>
@@ -156,10 +159,10 @@ export function getInvoiceContent({
           </thead>
           <tbody>
             ${form.pieces.map(p => {
-              const item = items.find(i => i.id === p.itemId);
-              const quantity = Math.max(1, Number(p.quantity) || 1);
-              const lineTot = (p.rate || 0) * quantity;
-              return `<tr>
+      const item = items.find(i => i.id === p.itemId);
+      const quantity = Math.max(1, Number(p.quantity) || 1);
+      const lineTot = (p.rate || 0) * quantity;
+      return `<tr>
                 <td style="vertical-align: middle;"><div style="width: 12px; height: 12px; border: 1px solid #666; border-radius: 2px; margin: 0 auto;"></div></td>
                 <td>${item?.image ? `<img src="${item.image}" style="width: 35px; height: 45px; object-fit: cover; border-radius: 3px;" />` : ""}</td>
                 <td><strong>${item?.name || "-"}</strong><br/><span style="font-size: 9px; color: #666;">Qty: ${quantity} | Del: ${formatDate(p.deliveryDate)} | Return: ${formatDate(p.endDate)}</span></td>
@@ -167,17 +170,18 @@ export function getInvoiceContent({
                 <td class="text-right">${formatCurrencyINR(p.rate ?? 0)}</td>
                 <td class="text-right">${formatCurrencyINR(lineTot)}</td>
               </tr>`;
-            }).join('')}
+    }).join('')}
           </tbody>
         </table>
 
         <div class="summary-box">
           <div class="row"><span>Total Rent</span><span>${formatCurrencyINR(piecesTotal)}</span></div>
-          <div class="row"><span>Security Deposit</span><span>${formatCurrencyINR(form.securityAmount)}</span></div>
+          ${securityDeposit > 0 ? `<div class="row"><span>Security Deposit Received</span><span>${formatCurrencyINR(securityDeposit)}</span></div>` : ""}
           ${form.discount > 0 ? `<div class="row"><span>Discount</span><span>-${formatCurrencyINR(form.discount)}</span></div>` : ""}
           <div class="row" style="font-weight: 600;"><span>Total Bill Amount</span><span>${formatCurrencyINR(totalBillAmount)}</span></div>
           <div class="row"><span>Amount Paid</span><span>${formatCurrencyINR(form.advance)}</span></div>
-          <div class="row"><span>Security Refund Due</span><span>${formatCurrencyINR(securityRefundDue)}</span></div>
+          ${securityDeposit > 0 ? `<div class="row"><span>Security Refund</span><span>${formatCurrencyINR(securityRefund)}</span></div>` : ""}
+          ${remainingSecurity > 0 ? `<div class="row"><span>Remaining Refundable Security</span><span>${formatCurrencyINR(remainingSecurity)}</span></div>` : ""}
           <div class="row total"><span>Rental Balance Due</span><span>${formatCurrencyINR(balanceDue)}</span></div>
         </div>
 

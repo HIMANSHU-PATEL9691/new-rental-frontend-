@@ -439,7 +439,11 @@ export function EditRentalDialog({
 
     const aggAdvanceLocal = form.advance || 0;
     const aggSecurityLocal = form.securityAmount || 0;
-    const aggSecurityRefundDueLocal = form.status === "returned" && form.securityReturned ? 0 : aggSecurityLocal;
+    const explicitRefund = (form as any).securityRefundAmount != null && Number((form as any).securityRefundAmount) > 0
+      ? Number((form as any).securityRefundAmount)
+      : (form.securityReturned ? aggSecurityLocal : 0);
+    const aggSecurityRefundLocal = Math.min(aggSecurityLocal, Math.max(0, explicitRefund));
+    const aggRemainingSecurityLocal = Math.max(0, aggSecurityLocal - aggSecurityRefundLocal);
     const aggTotalLocal = aggSubtotalLocal + aggSecurityLocal;
     const aggFinalDueLocal = Math.max(0, aggTotalLocal - aggAdvanceLocal);
 
@@ -448,16 +452,20 @@ export function EditRentalDialog({
       aggSubtotal: aggSubtotalLocal,
       aggAdvance: aggAdvanceLocal,
       aggSecurity: aggSecurityLocal,
-      aggSecurityRefundDue: aggSecurityRefundDueLocal,
+      aggSecurityRefund: aggSecurityRefundLocal,
+      aggRemainingSecurity: aggRemainingSecurityLocal,
+      aggSecurityRefundDue: aggSecurityRefundLocal,
       aggTotal: aggTotalLocal,
       aggFinalDue: aggFinalDueLocal,
     };
-  }, [form.pieces, form.advance, form.securityAmount, form.securityReturned, form.status, getItem]);
+  }, [form.pieces, form.advance, form.securityAmount, form.securityReturned, (form as any).securityRefundAmount, form.status, getItem]);
 
   const piecesData = computedPieces.pieces;
   const aggSubtotal = computedPieces.aggSubtotal;
   const aggAdvance = computedPieces.aggAdvance;
   const aggSecurity = computedPieces.aggSecurity;
+  const aggSecurityRefund = computedPieces.aggSecurityRefund;
+  const aggRemainingSecurity = computedPieces.aggRemainingSecurity;
   const aggSecurityRefundDue = computedPieces.aggSecurityRefundDue;
   const aggTotal = computedPieces.aggTotal;
   const aggFinalDue = computedPieces.aggFinalDue;
@@ -516,10 +524,11 @@ export function EditRentalDialog({
         ${thermalPiecesHtml}
 
         <div class="thermal-row"><span>Total Rent</span><span>${formatCurrencyINR(aggSubtotal)}</span></div>
-        <div class="thermal-row"><span>Security Received</span><span>${formatCurrencyINR(aggSecurity)}</span></div>
+        ${aggSecurity > 0 ? `<div class="thermal-row"><span>Security Deposit Received</span><span>${formatCurrencyINR(aggSecurity)}</span></div>` : ""}
         <div class="thermal-row"><span>Total Bill</span><span>${formatCurrencyINR(aggTotal)}</span></div>
         <div class="thermal-row"><span>Amount Paid</span><span>${formatCurrencyINR(aggAdvance)}</span></div>
-        <div class="thermal-row"><span>Security Refund</span><span>${formatCurrencyINR(aggSecurityRefundDue)}</span></div>
+        ${aggSecurity > 0 ? `<div class="thermal-row"><span>Security Refund</span><span>${formatCurrencyINR(aggSecurityRefund)}</span></div>` : ""}
+        ${aggRemainingSecurity > 0 ? `<div class="thermal-row"><span>Remaining Security</span><span>${formatCurrencyINR(aggRemainingSecurity)}</span></div>` : ""}
         <div class="thermal-row thermal-total"><span>Balance</span><span>${formatCurrencyINR(aggFinalDue)}</span></div>
 
         <div class="thermal-divider"></div>
@@ -548,8 +557,8 @@ export function EditRentalDialog({
     form.status === "returned" || form.status === "overdue"
       ? "Final bill confirms rental dues and security refund clearance."
       : form.status === "active"
-      ? "Delivery invoice reflects the current balance. Set status to Returned for the final bill."
-      : "Booking invoice reflects the advance paid. Change status to Active for delivery or Returned for the final bill.";
+        ? "Delivery invoice reflects the current balance. Set status to Returned for the final bill."
+        : "Booking invoice reflects the advance paid. Change status to Active for delivery or Returned for the final bill.";
 
   const handleStatusChange = (v: RentalStatus) => {
     if (v === "returned") {
@@ -653,18 +662,16 @@ export function EditRentalDialog({
 *Client:* ${customer?.name || rental.customerId}
 *Pieces:* 
 ${piecesData
-  .map(
-    (p) =>
-      `- ${p.rItem?.name || "Unknown"} (${p.r.itemNo || p.r.itemId}) [Qty: ${p.rQuantity}${p.rLostQuantity > 0 ? `, Lost: ${p.rLostQuantity}` : ""} | Del: ${formatDate(p.rDeliveryDate.slice(0, 10))}${p.rDeliveryTime ? ` ${p.rDeliveryTime}` : ""}${p.rDeliveryTimePeriod ? ` (${p.rDeliveryTimePeriod})` : ""} | Return: ${formatDate(p.rEndDate.slice(0, 10))}${p.rEndTime ? ` ${p.rEndTime}` : ""}${p.rEndTimePeriod ? ` (${p.rEndTimePeriod})` : ""}] - ${formatCurrencyINR(p.rSubtotal)}`,
-  )
-  .join("\n")}
+        .map(
+          (p) =>
+            `- ${p.rItem?.name || "Unknown"} (${p.r.itemNo || p.r.itemId}) [Qty: ${p.rQuantity}${p.rLostQuantity > 0 ? `, Lost: ${p.rLostQuantity}` : ""} | Del: ${formatDate(p.rDeliveryDate.slice(0, 10))}${p.rDeliveryTime ? ` ${p.rDeliveryTime}` : ""}${p.rDeliveryTimePeriod ? ` (${p.rDeliveryTimePeriod})` : ""} | Return: ${formatDate(p.rEndDate.slice(0, 10))}${p.rEndTime ? ` ${p.rEndTime}` : ""}${p.rEndTimePeriod ? ` (${p.rEndTimePeriod})` : ""}] - ${formatCurrencyINR(p.rSubtotal)}`,
+        )
+        .join("\n")}
 
 *Total Rent:* ${formatCurrencyINR(aggSubtotal)}
-*Security Received:* ${formatCurrencyINR(aggSecurity)}
-*Total Bill:* ${formatCurrencyINR(aggTotal)}
+${aggSecurity > 0 ? `*Security Deposit Received:* ${formatCurrencyINR(aggSecurity)}\n` : ""}*Total Bill:* ${formatCurrencyINR(aggTotal)}
 *Amount Paid:* ${formatCurrencyINR(aggAdvance)}
-*Security Refund:* ${formatCurrencyINR(aggSecurityRefundDue)}
-*Balance:* ${formatCurrencyINR(aggFinalDue)}
+${aggSecurity > 0 ? `*Security Refund:* ${formatCurrencyINR(aggSecurityRefund)}\n` : ""}${aggRemainingSecurity > 0 ? `*Remaining Refundable Security:* ${formatCurrencyINR(aggRemainingSecurity)}\n` : ""}*Balance:* ${formatCurrencyINR(aggFinalDue)}
 
 Thank you for choosing SAJAN SAGAR COLLECTION!`;
 
@@ -790,10 +797,11 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
 
         <div class="summary-box">
           <div class="row"><span>Total Rent</span><span>${formatCurrencyINR(aggSubtotal)}</span></div>
-          <div class="row"><span>Security Deposit</span><span>${formatCurrencyINR(aggSecurity)}</span></div>
+          ${aggSecurity > 0 ? `<div class="row"><span>Security Deposit Received</span><span>${formatCurrencyINR(aggSecurity)}</span></div>` : ""}
           <div class="row"><span>Total Bill</span><span>${formatCurrencyINR(aggTotal)}</span></div>
           <div class="row"><span>Amount Paid</span><span>${formatCurrencyINR(aggAdvance)}</span></div>
-          <div class="row"><span>Security Refund</span><span>${formatCurrencyINR(aggSecurityRefundDue)}</span></div>
+          ${aggSecurity > 0 ? `<div class="row"><span>Security Refund</span><span>${formatCurrencyINR(aggSecurityRefund)}</span></div>` : ""}
+          ${aggRemainingSecurity > 0 ? `<div class="row"><span>Remaining Refundable Security</span><span>${formatCurrencyINR(aggRemainingSecurity)}</span></div>` : ""}
           <div class="row total"><span>Balance</span><span>${formatCurrencyINR(aggFinalDue)}</span></div>
         </div>
 
@@ -950,7 +958,7 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
     const piecesData = parsed.data.pieces.map((p) => {
       const trimmedNo = (p.itemNo || "").trim();
       const item = (trimmedNo ? (findItemByCode(items, trimmedNo) || items.find((i) => i.customId?.toLowerCase() === trimmedNo.toLowerCase() || i.id === trimmedNo)) : null) ||
-                   (p.itemId ? items.find((i) => i.id === p.itemId || i.customId === p.itemId) : null);
+        (p.itemId ? items.find((i) => i.id === p.itemId || i.customId === p.itemId) : null);
       if (!item) {
         return { ...p, item: null, itemId: "", lineTotal: 0 };
       }
@@ -1519,7 +1527,7 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
                               onClick={(e) => {
                                 try {
                                   (e.target as HTMLInputElement).showPicker?.();
-                                } catch (err) {}
+                                } catch (err) { }
                               }}
                               className="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer"
                               required
@@ -1599,7 +1607,7 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
                               onClick={(e) => {
                                 try {
                                   (e.target as HTMLInputElement).showPicker?.();
-                                } catch (err) {}
+                                } catch (err) { }
                               }}
                               className="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer"
                               required

@@ -83,7 +83,7 @@ export function ViewInvoiceDialog({
 
   const isControlled = externalOpen !== undefined;
   const isOpen = isControlled ? externalOpen : internalOpen;
-  const setIsOpen = isControlled ? (externalOnOpenChange || (() => {})) : setInternalOpen;
+  const setIsOpen = isControlled ? (externalOnOpenChange || (() => { })) : setInternalOpen;
 
   const { rentals, getItem, getCustomer, items } = useStore();
 
@@ -170,6 +170,8 @@ export function ViewInvoiceDialog({
       aggDiscount: financials.discount,
       aggPenalty: financials.penalty,
       aggTotal: financials.totalBillAmount,
+      aggSecurityRefund: financials.securityRefund,
+      aggRemainingSecurity: financials.remainingSecurity,
       aggSecurityRefundDue: financials.securityRefundDue,
       aggFinalDue: financials.balanceDue,
     };
@@ -182,6 +184,8 @@ export function ViewInvoiceDialog({
     aggSecurity,
     aggDiscount,
     aggTotal,
+    aggSecurityRefund,
+    aggRemainingSecurity,
     aggSecurityRefundDue,
     aggFinalDue,
   } = piecesData;
@@ -189,8 +193,8 @@ export function ViewInvoiceDialog({
   const billMakingDate = (rental as any).billMakingDate
     ? new Date((rental as any).billMakingDate).toLocaleDateString("en-IN")
     : (rental as any).createdAt
-    ? new Date((rental as any).createdAt).toLocaleDateString("en-IN")
-    : new Date().toLocaleDateString("en-IN");
+      ? new Date((rental as any).createdAt).toLocaleDateString("en-IN")
+      : new Date().toLocaleDateString("en-IN");
 
   const getInvoiceTitle = (status: string) => {
     const s = (status || "").toLowerCase();
@@ -314,10 +318,11 @@ export function ViewInvoiceDialog({
           <div class="summary-box">
             <div class="row"><span>Total Rent</span><span>${formatCurrencyINR(aggSubtotal)}</span></div>
             ${aggDiscount > 0 ? `<div class="row"><span>Discount</span><span>-${formatCurrencyINR(aggDiscount)}</span></div>` : ""}
-            <div class="row"><span>Security Received</span><span>${formatCurrencyINR(aggSecurity)}</span></div>
+            ${aggSecurity > 0 ? `<div class="row"><span>Security Deposit Received</span><span>${formatCurrencyINR(aggSecurity)}</span></div>` : ""}
             <div class="row"><span>Total Bill</span><span>${formatCurrencyINR(aggTotal)}</span></div>
             <div class="row"><span>Amount Paid</span><span>${formatCurrencyINR(aggAdvance)}</span></div>
-            <div class="row"><span>Security Refund</span><span>${formatCurrencyINR(aggSecurityRefundDue)}</span></div>
+            ${aggSecurity > 0 ? `<div class="row"><span>Security Refund</span><span>${formatCurrencyINR(aggSecurityRefund)}</span></div>` : ""}
+            ${aggRemainingSecurity > 0 ? `<div class="row"><span>Remaining Refundable Security</span><span>${formatCurrencyINR(aggRemainingSecurity)}</span></div>` : ""}
             <div class="row total"><span>Balance Due</span><span>${formatCurrencyINR(aggFinalDue)}</span></div>
           </div>
 
@@ -394,10 +399,11 @@ export function ViewInvoiceDialog({
           ${thermalPiecesHtml}
 
           <div class="row"><span>Total Rent</span><span>${formatCurrencyINR(aggSubtotal)}</span></div>
-          <div class="row"><span>Security Received</span><span>${formatCurrencyINR(aggSecurity)}</span></div>
+          ${aggSecurity > 0 ? `<div class="row"><span>Security Deposit Received</span><span>${formatCurrencyINR(aggSecurity)}</span></div>` : ""}
           <div class="row"><span>Total Bill</span><span>${formatCurrencyINR(aggTotal)}</span></div>
           <div class="row"><span>Amount Paid</span><span>${formatCurrencyINR(aggAdvance)}</span></div>
-          <div class="row"><span>Security Refund</span><span>${formatCurrencyINR(aggSecurityRefundDue)}</span></div>
+          ${aggSecurity > 0 ? `<div class="row"><span>Security Refund</span><span>${formatCurrencyINR(aggSecurityRefund)}</span></div>` : ""}
+          ${aggRemainingSecurity > 0 ? `<div class="row"><span>Remaining Security</span><span>${formatCurrencyINR(aggRemainingSecurity)}</span></div>` : ""}
           <div class="row total-row"><span>Balance Dues</span><span>${formatCurrencyINR(aggFinalDue)}</span></div>
 
           <div class="divider"></div>
@@ -480,7 +486,7 @@ export function ViewInvoiceDialog({
             sheet.disabled = true;
             disabledSheets.push(sheet);
           }
-        } catch (e) {}
+        } catch (e) { }
       });
 
       // 3. Temporarily sanitize style elements in the main document while html2canvas initializes
@@ -603,7 +609,7 @@ export function ViewInvoiceDialog({
         disabledSheets.forEach((sheet) => {
           try {
             sheet.disabled = false;
-          } catch (e) {}
+          } catch (e) { }
         });
 
         // Restore original main document style text
@@ -676,17 +682,16 @@ export function ViewInvoiceDialog({
 *Client:* ${customer?.name || rental.customerId}
 *Pieces:* 
 ${pieces
-  .map(
-    (p) =>
-      `- ${p.rItem?.name || "Piece"} (${p.r.itemNo || p.r.itemId}) [Qty: ${p.rQuantity} | Del: ${formatDate(p.rDeliveryDate.slice(0, 10))} | Return: ${formatDate(p.rEndDate.slice(0, 10))}] - ${formatCurrencyINR(p.rSubtotal)}`
-  )
-  .join("\n")}
+        .map(
+          (p) =>
+            `- ${p.rItem?.name || "Piece"} (${p.r.itemNo || p.r.itemId}) [Qty: ${p.rQuantity} | Del: ${formatDate(p.rDeliveryDate.slice(0, 10))} | Return: ${formatDate(p.rEndDate.slice(0, 10))}] - ${formatCurrencyINR(p.rSubtotal)}`
+        )
+        .join("\n")}
 
 *Total Rent:* ${formatCurrencyINR(aggSubtotal)}
-*Security Received:* ${formatCurrencyINR(aggSecurity)}
-*Total Bill:* ${formatCurrencyINR(aggTotal)}
+${aggSecurity > 0 ? `*Security Deposit Received:* ${formatCurrencyINR(aggSecurity)}\n` : ""}*Total Bill:* ${formatCurrencyINR(aggTotal)}
 *Amount Paid:* ${formatCurrencyINR(aggAdvance)}
-*Balance Due:* ${formatCurrencyINR(aggFinalDue)}
+${aggSecurity > 0 ? `*Security Refund:* ${formatCurrencyINR(aggSecurityRefund)}\n` : ""}${aggRemainingSecurity > 0 ? `*Remaining Refundable Security:* ${formatCurrencyINR(aggRemainingSecurity)}\n` : ""}*Balance Due:* ${formatCurrencyINR(aggFinalDue)}
 
 Thank you for choosing SAJAN SAGAR COLLECTION!`;
 
@@ -737,18 +742,16 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
               <button
                 type="button"
                 onClick={() => setMode("A4")}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-                  mode === "A4" ? "bg-gold text-gold-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                }`}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${mode === "A4" ? "bg-gold text-gold-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
               >
                 A4 Paper
               </button>
               <button
                 type="button"
                 onClick={() => setMode("THERMAL")}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-                  mode === "THERMAL" ? "bg-gold text-gold-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                }`}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${mode === "THERMAL" ? "bg-gold text-gold-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
               >
                 POS Slip (80mm)
               </button>
@@ -882,10 +885,12 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
                     <span className="font-medium">-{formatCurrencyINR(aggDiscount)}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-zinc-600">
-                  <span>Security Deposit Received</span>
-                  <span className="font-medium text-zinc-900">{formatCurrencyINR(aggSecurity)}</span>
-                </div>
+                {aggSecurity > 0 && (
+                  <div className="flex justify-between text-zinc-600">
+                    <span>Security Deposit Received</span>
+                    <span className="font-medium text-zinc-900">{formatCurrencyINR(aggSecurity)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-zinc-800 font-semibold border-t border-zinc-200 pt-1.5">
                   <span>Total Bill Amount</span>
                   <span>{formatCurrencyINR(aggTotal)}</span>
@@ -894,10 +899,18 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
                   <span>Amount Paid / Advance</span>
                   <span>{formatCurrencyINR(aggAdvance)}</span>
                 </div>
-                <div className="flex justify-between text-zinc-600">
-                  <span>Security Refund</span>
-                  <span>{formatCurrencyINR(aggSecurityRefundDue)}</span>
-                </div>
+                {aggSecurity > 0 && (
+                  <div className="flex justify-between text-zinc-600">
+                    <span>Security Refund</span>
+                    <span>{formatCurrencyINR(aggSecurityRefund)}</span>
+                  </div>
+                )}
+                {aggRemainingSecurity > 0 && (
+                  <div className="flex justify-between text-indigo-600">
+                    <span>Remaining Refundable Security</span>
+                    <span>{formatCurrencyINR(aggRemainingSecurity)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-amber-700 font-bold text-sm border-t-2 border-zinc-900 pt-2 mt-2">
                   <span>Rental Balance Due</span>
                   <span>{formatCurrencyINR(aggFinalDue)}</span>

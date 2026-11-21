@@ -28,7 +28,9 @@ export interface BillFinancials {
   totalBillAmount: number;
   amountPaid: number;
   balanceDue: number;
+  securityRefund: number;
   securityRefundDue: number;
+  remainingSecurity: number;
   isSecurityRefunded: boolean;
   allReturned: boolean;
   refundStatus: RefundSecurityStatus;
@@ -44,7 +46,9 @@ export function calculateBillFinancials(relatedRentals: any[]): BillFinancials {
       totalBillAmount: 0,
       amountPaid: 0,
       balanceDue: 0,
+      securityRefund: 0,
       securityRefundDue: 0,
+      remainingSecurity: 0,
       isSecurityRefunded: false,
       allReturned: false,
       refundStatus: "None",
@@ -69,7 +73,21 @@ export function calculateBillFinancials(relatedRentals: any[]): BillFinancials {
 
   const allReturned = relatedRentals.every((r) => r.status === "returned");
   const isSecurityRefunded = relatedRentals.some((r) => Boolean((r as any).securityReturned));
-  const securityRefundDue = (allReturned && isSecurityRefunded) ? 0 : securityDeposit;
+
+  let securityRefund = 0;
+  for (const r of relatedRentals) {
+    if ((r as any).securityRefundAmount != null && Number((r as any).securityRefundAmount) > 0) {
+      securityRefund = Math.max(securityRefund, Number((r as any).securityRefundAmount));
+    }
+  }
+  if (securityRefund <= 0 && isSecurityRefunded) {
+    const explicitItemSec = relatedRentals.reduce((max, r) => {
+      return (r as any).securityReturned ? Math.max(max, Number(r.securityAmount) || 0) : max;
+    }, 0);
+    securityRefund = explicitItemSec > 0 ? explicitItemSec : securityDeposit;
+  }
+  securityRefund = Math.min(securityDeposit, Math.max(0, securityRefund));
+  const remainingSecurity = Math.max(0, securityDeposit - securityRefund);
   const refundStatus = getBillRefundSecurityStatus(relatedRentals);
 
   return {
@@ -80,7 +98,9 @@ export function calculateBillFinancials(relatedRentals: any[]): BillFinancials {
     totalBillAmount,
     amountPaid,
     balanceDue,
-    securityRefundDue,
+    securityRefund,
+    securityRefundDue: securityRefund,
+    remainingSecurity,
     isSecurityRefunded,
     allReturned,
     refundStatus,

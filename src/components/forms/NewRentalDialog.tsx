@@ -1306,7 +1306,9 @@ export function NewRentalDialog({
                   </div>
                   <div className="grid gap-1 text-sm">
                     <div className="flex justify-between text-muted-foreground"><span>Total Rent</span><span>{formatCurrencyINR(piecesTotal)}</span></div>
-                    <div className="flex justify-between text-muted-foreground"><span>Security Deposit</span><span>{formatCurrencyINR(form.securityAmount)}</span></div>
+                    {form.securityAmount > 0 ? (
+                      <div className="flex justify-between text-muted-foreground"><span>Security Deposit Received</span><span>{formatCurrencyINR(form.securityAmount)}</span></div>
+                    ) : null}
                     <div className="flex justify-between text-muted-foreground"><span>Total Bill</span><span>{formatCurrencyINR(netTotal)}</span></div>
                     <div className="flex justify-between text-muted-foreground"><span>Amount Paid</span><span>{formatCurrencyINR(form.advance)}</span></div>
                     <div className="flex justify-between text-gold font-semibold"><span>Balance</span><span>{formatCurrencyINR(balanceDue)}</span></div>
