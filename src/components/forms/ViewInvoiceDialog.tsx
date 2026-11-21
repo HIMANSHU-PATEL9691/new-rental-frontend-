@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,9 +9,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Printer, Receipt, Download, MessageSquare, Eye, FileText, CheckCircle } from "lucide-react";
-import { useStore } from "@/data/store";
-import { formatCurrencyINR, getBillSecurity } from "@/lib/utils";
-import { formatImageUrl } from "@/lib/api";
+import { useStore, transformRental } from "@/data/store";
+import { formatCurrencyINR, getBillSecurity, calculateBillFinancials, sortBillItemsChronological } from "@/lib/utils";
+import { formatImageUrl, rentalsApi } from "@/lib/api";
 import { toast } from "sonner";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
@@ -85,25 +85,54 @@ export function ViewInvoiceDialog({
   const isOpen = isControlled ? externalOpen : internalOpen;
   const setIsOpen = isControlled ? (externalOnOpenChange || (() => {})) : setInternalOpen;
 
-  const { rentals, getItem, getCustomer } = useStore();
+  const { rentals, getItem, getCustomer, items } = useStore();
 
   const customer = getCustomer(rental.customerId);
 
-  const relatedRentals = useMemo(() => {
-    if (rental.billNo) {
-      return rentals.filter((r) => r.billNo === rental.billNo);
+  const cleanBillNo = useMemo(() => {
+    return String(rental.billNo || "").trim().replace(/^#+/, "").toLowerCase();
+  }, [rental.billNo]);
+
+  const [serverPieces, setServerPieces] = useState<Rental[] | null>(null);
+
+  useEffect(() => {
+    if (isOpen && cleanBillNo) {
+      rentalsApi.getByBillNo(cleanBillNo)
+        .then((res) => {
+          if (Array.isArray(res) && res.length > 0) {
+            setServerPieces(res.map(transformRental));
+          }
+        })
+        .catch((err) => {
+          console.warn("[ViewInvoiceDialog] fetch by bill error:", err);
+        });
     }
-    return [rental];
-  }, [rentals, rental.billNo, rental.id]);
+  }, [isOpen, cleanBillNo]);
+
+  const relatedRentals = useMemo(() => {
+    let list: Rental[] = [rental];
+    if (serverPieces && serverPieces.length > 0) {
+      list = serverPieces;
+    } else if (cleanBillNo) {
+      const matched = rentals.filter((r) => {
+        const rBill = String(r.billNo || "").trim().replace(/^#+/, "").toLowerCase();
+        return rBill === cleanBillNo;
+      });
+      if (matched.length > 0) list = matched;
+    }
+    return sortBillItemsChronological(list);
+  }, [rentals, cleanBillNo, rental, serverPieces]);
 
   const piecesData = useMemo(() => {
-    let aggSubtotal = 0;
-    let aggAdvance = 0;
-    let aggDiscount = 0;
-    let aggPenalty = 0;
+    const financials = calculateBillFinancials(relatedRentals);
 
     const list = relatedRentals.map((r) => {
-      const rItem = getItem(r.itemId);
+      const rItem =
+        getItem(r.itemId) ||
+        (r.item && typeof r.item === "object" ? r.item : undefined) ||
+        items.find((i) => i.customId === r.itemNo || i.id === r.itemId || i.customId === r.itemId) ||
+        getItem((r as any).item) ||
+        getItem(r.itemNo);
       const rStartDate = r.startDate || "";
       const rEndDate = r.endDate || "";
       const rDeliveryDate = r.deliveryDate || rStartDate;
@@ -115,11 +144,6 @@ export function ViewInvoiceDialog({
       const rLostQuantity = Number((r as any).lostQuantity) || 0;
       const rRate = getRentalAmount(r, rItem ? rItem.pricePerDay * daysBetween(rStartDate, rEndDate) : 0);
       const rSubtotal = rRate * rQuantity;
-
-      aggSubtotal += rSubtotal;
-      aggAdvance += Number(r.advance) || 0;
-      aggDiscount += Number(r.discount) || 0;
-      aggPenalty += Number(r.penalty) || 0;
 
       return {
         r,
@@ -138,23 +162,16 @@ export function ViewInvoiceDialog({
       };
     });
 
-    const aggSecurity = getBillSecurity(relatedRentals);
-    const hasBeenRefunded = relatedRentals.some((r) => Boolean((r as any).securityReturned));
-    const aggSecurityRefundDue = hasBeenRefunded ? 0 : aggSecurity;
-
-    const aggTotal = aggSubtotal + aggSecurity + aggPenalty - aggDiscount;
-    const aggFinalDue = Math.max(0, aggTotal - aggAdvance);
-
     return {
       pieces: list,
-      aggSubtotal,
-      aggAdvance,
-      aggSecurity,
-      aggDiscount,
-      aggPenalty,
-      aggTotal,
-      aggSecurityRefundDue,
-      aggFinalDue,
+      aggSubtotal: financials.totalRent,
+      aggAdvance: financials.amountPaid,
+      aggSecurity: financials.securityDeposit,
+      aggDiscount: financials.discount,
+      aggPenalty: financials.penalty,
+      aggTotal: financials.totalBillAmount,
+      aggSecurityRefundDue: financials.securityRefundDue,
+      aggFinalDue: financials.balanceDue,
     };
   }, [relatedRentals, getItem]);
 

@@ -296,6 +296,7 @@ export const billsApi = {
 export const rentalsApi = {
   getAll: (branch?: string) => apiRequest<Rental[]>(`${API_BASE}/rentals${branch ? `?branch=${encodeURIComponent(branch)}` : ''}`),
   getById: (id: string) => apiRequest<Rental>(`${API_BASE}/rentals/${id}`),
+  getByBillNo: (billNo: string) => apiRequest<Rental[]>(`${API_BASE}/rentals/bill/${encodeURIComponent(billNo)}`),
   create: (data: Omit<Rental, '_id' | 'id' | 'customId' | 'createdAt' | 'updatedAt'>) =>
     apiRequest<Rental>(`${API_BASE}/rentals`, {
       method: 'POST',

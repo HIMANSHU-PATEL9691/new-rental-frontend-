@@ -80,7 +80,7 @@ function formatDateTime(value: string | Date | undefined) {
   return date.toISOString();
 }
 
-function transformRental(rental: any): Rental {
+export function transformRental(rental: any): Rental {
   const itemId =
     rental.itemId ||
     rental.item?.customId ||

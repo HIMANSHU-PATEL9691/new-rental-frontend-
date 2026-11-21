@@ -20,6 +20,95 @@ export function getBillSecurity(relatedRentals: any[]): number {
   return relatedRentals.reduce((sum, r) => sum + (Number(r.securityAmount) || 0), 0);
 }
 
+export interface BillFinancials {
+  totalRent: number;
+  discount: number;
+  penalty: number;
+  securityDeposit: number;
+  totalBillAmount: number;
+  amountPaid: number;
+  balanceDue: number;
+  securityRefundDue: number;
+  isSecurityRefunded: boolean;
+  allReturned: boolean;
+  refundStatus: RefundSecurityStatus;
+}
+
+export function calculateBillFinancials(relatedRentals: any[]): BillFinancials {
+  if (!relatedRentals || relatedRentals.length === 0) {
+    return {
+      totalRent: 0,
+      discount: 0,
+      penalty: 0,
+      securityDeposit: 0,
+      totalBillAmount: 0,
+      amountPaid: 0,
+      balanceDue: 0,
+      securityRefundDue: 0,
+      isSecurityRefunded: false,
+      allReturned: false,
+      refundStatus: "None",
+    };
+  }
+
+  let totalRent = 0;
+  let discount = 0;
+  let penalty = 0;
+  let amountPaid = 0;
+
+  for (const r of relatedRentals) {
+    totalRent += Number(r.total) || 0;
+    discount += Number(r.discount) || 0;
+    penalty += Number(r.penalty) || 0;
+    amountPaid += Number(r.advance) || 0;
+  }
+
+  const securityDeposit = getBillSecurity(relatedRentals);
+  const totalBillAmount = Math.max(0, totalRent + securityDeposit + penalty - discount);
+  const balanceDue = Math.max(0, totalBillAmount - amountPaid);
+
+  const allReturned = relatedRentals.every((r) => r.status === "returned");
+  const isSecurityRefunded = relatedRentals.some((r) => Boolean((r as any).securityReturned));
+  const securityRefundDue = (allReturned && isSecurityRefunded) ? 0 : securityDeposit;
+  const refundStatus = getBillRefundSecurityStatus(relatedRentals);
+
+  return {
+    totalRent,
+    discount,
+    penalty,
+    securityDeposit,
+    totalBillAmount,
+    amountPaid,
+    balanceDue,
+    securityRefundDue,
+    isSecurityRefunded,
+    allReturned,
+    refundStatus,
+  };
+}
+
+export function getDueAmount(rental: any, allRentals: any[] = []): number {
+  if (!rental) return 0;
+  if (rental.billNo && allRentals && allRentals.length > 0) {
+    const relatedRentals = allRentals.filter((r) => r.billNo === rental.billNo);
+    if (relatedRentals.length > 0) {
+      return calculateBillFinancials(relatedRentals).balanceDue;
+    }
+  }
+  return calculateBillFinancials([rental]).balanceDue;
+}
+
+export function sortBillItemsChronological<T extends any>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    const timeA = new Date((a as any).createdAt || 0).getTime();
+    const timeB = new Date((b as any).createdAt || 0).getTime();
+    if (timeA !== timeB) return timeA - timeB;
+    const idA = String((a as any).customId || (a as any).id || (a as any)._id || "");
+    const idB = String((b as any).customId || (b as any).id || (b as any)._id || "");
+    return idA.localeCompare(idB, undefined, { numeric: true });
+  });
+}
+
 export type RefundSecurityStatus = "Pending" | "Eligible" | "Refunded" | "None";
 
 export interface RefundAggregation {
@@ -167,3 +256,38 @@ export function getItemRefundSecurityDisplay(rental: any, allRentals: any[] = []
 
   return 0;
 }
+
+/**
+ * Safely extracts the numerical value from an order/bill identifier.
+ * Examples: "#212" -> 212, "212" -> 212, "#INV-0003" -> 3, "BILL-0001" -> 1, "R-852" -> 852.
+ */
+export function extractOrderNumber(val?: string | null): number {
+  if (!val) return -Infinity;
+  const str = String(val).trim();
+  const cleaned = str.replace(/^#+/, "").trim();
+  const matches = cleaned.match(/\d+/g);
+  if (matches && matches.length > 0) {
+    const num = parseInt(matches[matches.length - 1], 10);
+    if (!Number.isNaN(num)) return num;
+  }
+  return -Infinity;
+}
+
+/**
+ * Compares two order identifiers in descending numerical order (largest to smallest).
+ * Handles prefixed order numbers such as #INV-0003, BILL-0001, #212 safely.
+ */
+export function compareOrdersDescending(a?: string | null, b?: string | null): number {
+  const numA = extractOrderNumber(a);
+  const numB = extractOrderNumber(b);
+
+  if (numA !== numB) {
+    return numB - numA; // Descending: largest to smallest (e.g. 212 > 211 > 210)
+  }
+
+  // Tie-breaker: natural string comparison descending
+  const strA = String(a || "").trim();
+  const strB = String(b || "").trim();
+  return strB.localeCompare(strA, undefined, { numeric: true, sensitivity: "base" });
+}
+

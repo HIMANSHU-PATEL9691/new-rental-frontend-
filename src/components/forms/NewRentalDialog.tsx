@@ -568,14 +568,20 @@ export function NewRentalDialog({
     try {
       // Create one rental record per piece (same billNo) as before,
       // but force status to 'upcoming' and mark as final bill to avoid status-specific bills.
-      const rentalPromises = piecesData.map((p) => {
+      let allocatedAdvance = 0;
+      const rentalPromises = piecesData.map((p, idx) => {
+        const isLastPiece = idx === piecesData.length - 1;
         const ratio = piecesTotal > 0 ? p.lineTotal / piecesTotal : 1 / piecesData.length;
+        const pieceAdvance = isLastPiece
+          ? Math.max(0, parsed.data.advance - allocatedAdvance)
+          : Math.round(parsed.data.advance * ratio);
+        allocatedAdvance += pieceAdvance;
 
         const payload: any = {
           billNo: parsed.data.billNo,
           address: parsed.data.address,
           customerId: parsed.data.customerId,
-          advance: Math.round(parsed.data.advance * ratio),
+          advance: pieceAdvance,
           billSecurityAmount: Number(parsed.data.securityAmount) || 0,
           securityAmount: piecesData.length === 1 ? (Number(parsed.data.securityAmount) || 0) : 0,
           securityReturned: false,

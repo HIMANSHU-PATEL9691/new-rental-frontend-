@@ -52,6 +52,7 @@ export function getInvoiceContent({
   balanceDue: number;
 }) {
   const totalCollected = (form.advance || 0) + (form.securityAmount || 0);
+  const totalBillAmount = Math.max(0, piecesTotal + (form.securityAmount || 0) - (form.discount || 0));
   const securityRefundDue = form.status === "returned" && form.securityReturned
     ? 0
     : form.securityAmount || 0;
@@ -171,11 +172,11 @@ export function getInvoiceContent({
         </table>
 
         <div class="summary-box">
-          <div class="row"><span>Subtotal</span><span>${formatCurrencyINR(piecesTotal)}</span></div>
-          <div class="row"><span>Discount</span><span>${formatCurrencyINR(form.discount)}</span></div>
-          <div class="row"><span>Rental Paid</span><span>${formatCurrencyINR(form.advance)}</span></div>
-          <div class="row"><span>Security Deposit Received</span><span>${formatCurrencyINR(form.securityAmount)}</span></div>
-          <div class="row"><span>Total Amount Collected</span><span>${formatCurrencyINR(totalCollected)}</span></div>
+          <div class="row"><span>Total Rent</span><span>${formatCurrencyINR(piecesTotal)}</span></div>
+          <div class="row"><span>Security Deposit</span><span>${formatCurrencyINR(form.securityAmount)}</span></div>
+          ${form.discount > 0 ? `<div class="row"><span>Discount</span><span>-${formatCurrencyINR(form.discount)}</span></div>` : ""}
+          <div class="row" style="font-weight: 600;"><span>Total Bill Amount</span><span>${formatCurrencyINR(totalBillAmount)}</span></div>
+          <div class="row"><span>Amount Paid</span><span>${formatCurrencyINR(form.advance)}</span></div>
           <div class="row"><span>Security Refund Due</span><span>${formatCurrencyINR(securityRefundDue)}</span></div>
           <div class="row total"><span>Rental Balance Due</span><span>${formatCurrencyINR(balanceDue)}</span></div>
         </div>

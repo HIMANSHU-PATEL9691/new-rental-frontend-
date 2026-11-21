@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo } from "react";
 import { AppShell } from "@/components/AppShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useStore } from "@/data/store";
-import { formatCurrencyINR, getBillSecurity, getItemRefundSecurityDisplay, getBillRefundSecurityStatus, calculateRefundSummary, type RefundSecurityStatus } from "@/lib/utils";
+import { formatCurrencyINR, getBillSecurity, getBillRefundSecurityStatus, calculateRefundSummary, compareOrdersDescending, calculateBillFinancials, getDueAmount, sortBillItemsChronological, type RefundSecurityStatus } from "@/lib/utils";
 import { formatImageUrl, FALLBACK_IMG } from "@/lib/api";
 import type { RentalStatus } from "@/data/mock";
 import {
@@ -54,30 +54,6 @@ const useNavigate = () => {
     window.dispatchEvent(new PopStateEvent('popstate'));
   };
 };
-
-function getDueAmount(rental: any, allRentals: any[] = []) {
-  if (rental.billNo && allRentals.length > 0) {
-    const relatedRentals = allRentals.filter((r) => r.billNo === rental.billNo);
-    const billSec = getBillSecurity(relatedRentals);
-    let aggRent = 0;
-    let aggAdvance = 0;
-    for (const r of relatedRentals) {
-      aggRent += (Number(r.total) || 0) + (Number(r.penalty) || 0) - (Number(r.discount) || 0);
-      aggAdvance += Number(r.advance) || 0;
-    }
-    const totalBill = aggRent + billSec;
-    return Math.max(0, totalBill - aggAdvance);
-  }
-  const sec = Number(rental.billSecurityAmount) || Number(rental.securityAmount) || 0;
-  return Math.max(
-    0,
-    (Number(rental.total) || 0) +
-      sec +
-      (Number(rental.penalty) || 0) -
-      (Number(rental.discount) || 0) -
-      (Number(rental.advance) || 0),
-  );
-}
 
 export default function RentalsPage() {
   const navigate = useNavigate();
@@ -144,20 +120,17 @@ export default function RentalsPage() {
   const query = (localSearch || searchQuery || "").trim().toLowerCase();
 
   const dueAmountMap = useMemo(() => {
-    const billTotals = new Map<string, { rent: number; advance: number; rentals: any[] }>();
+    const billMap = new Map<string, any[]>();
     for (const r of rentals) {
       if (r.billNo) {
-        const current = billTotals.get(r.billNo) || { rent: 0, advance: 0, rentals: [] };
-        current.rent += (Number(r.total) || 0) + (Number(r.penalty) || 0) - (Number(r.discount) || 0);
-        current.advance += Number(r.advance) || 0;
-        current.rentals.push(r);
-        billTotals.set(r.billNo, current);
+        const list = billMap.get(r.billNo) || [];
+        list.push(r);
+        billMap.set(r.billNo, list);
       }
     }
     const dueMap = new Map<string, number>();
-    for (const [billNo, totals] of billTotals.entries()) {
-      const billSec = getBillSecurity(totals.rentals);
-      dueMap.set(billNo, Math.max(0, totals.rent + billSec - totals.advance));
+    for (const [billNo, billRentals] of billMap.entries()) {
+      dueMap.set(billNo, calculateBillFinancials(billRentals).balanceDue);
     }
     return dueMap;
   }, [rentals]);
@@ -166,18 +139,11 @@ export default function RentalsPage() {
     if (rental.billNo && dueAmountMap.has(rental.billNo)) {
       return dueAmountMap.get(rental.billNo)!;
     }
-    return Math.max(
-      0,
-      (Number(rental.total) || 0) +
-        (Number(rental.securityAmount) || 0) +
-        (Number(rental.penalty) || 0) -
-        (Number(rental.discount) || 0) -
-        (Number(rental.advance) || 0),
-    );
+    return getDueAmount(rental, rentals);
   };
 
   const filteredRentals = useMemo(() => {
-    return rentals.filter((r) => {
+    const list = rentals.filter((r) => {
       const item = getItem(r.itemId);
       const customer = getCustomer(r.customerId);
       const dueAmount = calcRentalDue(r);
@@ -188,6 +154,14 @@ export default function RentalsPage() {
         String(r.advance),
         String(r.securityAmount),
       ]);
+    });
+
+    return [...list].sort((a, b) => {
+      const orderA = a.billNo || a.customId || a.id;
+      const orderB = b.billNo || b.customId || b.id;
+      const cmp = compareOrdersDescending(orderA, orderB);
+      if (cmp !== 0) return cmp;
+      return compareOrdersDescending(a.customId || a.id, b.customId || b.id);
     });
   }, [rentals, getItem, getCustomer, query, dueAmountMap]);
 
@@ -255,7 +229,21 @@ export default function RentalsPage() {
       }
     }
 
-    return Array.from(map.values());
+    // Sort items deterministically chronologically within each order
+    for (const entry of map.values()) {
+      entry.items.sort((a, b) => {
+        const timeA = new Date(a.rental?.createdAt || 0).getTime();
+        const timeB = new Date(b.rental?.createdAt || 0).getTime();
+        if (timeA !== timeB) return timeA - timeB;
+        const idA = String(a.rental?.customId || a.rental?.id || "");
+        const idB = String(b.rental?.customId || b.rental?.id || "");
+        return idA.localeCompare(idB, undefined, { numeric: true });
+      });
+    }
+
+    return Array.from(map.values()).sort((a, b) => {
+      return compareOrdersDescending(a.billNo, b.billNo);
+    });
   }, [filteredRentals, getItem, getCustomer, dueAmountMap]);
 
   const totals = useMemo(() => ({
@@ -593,7 +581,7 @@ export default function RentalsPage() {
                 </div>
 
                 {canViewFinancials && (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-secondary/30 rounded-lg p-2 text-center">
+                  <div className="grid grid-cols-3 gap-1.5 bg-secondary/30 rounded-lg p-2 text-center">
                     <div>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Total Rent</p>
                       <p className="font-sans font-bold text-xs text-foreground mt-0.5">{formatCurrencyINR(order.totalRent)}</p>
@@ -607,23 +595,6 @@ export default function RentalsPage() {
                       <p className={`font-sans font-bold text-xs mt-0.5 ${order.dueAmount > 0 ? "text-destructive" : "text-emerald-600"}`}>
                         {formatCurrencyINR(order.dueAmount)}
                       </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Refund Security</p>
-                      <p className="font-sans font-bold text-xs text-amber-700 mt-0.5">{formatCurrencyINR(order.securityAmount)}</p>
-                      {order.securityAmount > 0 && order.refundStatus && order.refundStatus !== "None" && (
-                        <span
-                          className={`inline-block text-[9px] px-1.5 py-0.2 rounded-full font-semibold border mt-0.5 ${
-                            order.refundStatus === "Refunded"
-                              ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
-                              : order.refundStatus === "Eligible"
-                              ? "bg-blue-500/10 text-blue-700 border-blue-500/20"
-                              : "bg-amber-500/10 text-amber-700 border-amber-500/20"
-                          }`}
-                        >
-                          {order.refundStatus}
-                        </span>
-                      )}
                     </div>
                   </div>
                 )}
@@ -701,48 +672,24 @@ export default function RentalsPage() {
                       </span>
                     </div>
 
-                    {canViewFinancials && (() => {
-                      const refundSec = getItemRefundSecurityDisplay(r, rentals);
-                      const relatedRentals = r.billNo ? rentals.filter((rent) => rent.billNo === r.billNo) : [r];
-                      const pieceRefundStatus = getBillRefundSecurityStatus(relatedRentals);
-                      return (
-                        <div className="mt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-1 bg-secondary/30 rounded-lg p-1.5 text-center text-xs">
-                          <div>
-                            <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Total</p>
-                            <p className="font-sans font-bold text-xs text-foreground mt-0.5">{formatCurrencyINR(r.total)}</p>
-                          </div>
-                          <div>
-                            <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Advance</p>
-                            <p className="font-sans font-bold text-xs text-emerald-600 mt-0.5">{formatCurrencyINR(r.advance || 0)}</p>
-                          </div>
-                          <div>
-                            <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Due</p>
-                            <p className={`font-sans font-bold text-xs mt-0.5 ${dueAmount > 0 ? "text-destructive" : "text-emerald-600"}`}>
-                              {formatCurrencyINR(dueAmount)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Refund Sec</p>
-                            <p className="font-sans font-bold text-xs text-amber-700 mt-0.5">
-                              {refundSec > 0 ? formatCurrencyINR(refundSec) : "-"}
-                            </p>
-                            {refundSec > 0 && pieceRefundStatus !== "None" && (
-                              <span
-                                className={`inline-block text-[9px] px-1 rounded-full font-semibold border mt-0.5 ${
-                                  pieceRefundStatus === "Refunded"
-                                    ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
-                                    : pieceRefundStatus === "Eligible"
-                                    ? "bg-blue-500/10 text-blue-700 border-blue-500/20"
-                                    : "bg-amber-500/10 text-amber-700 border-amber-500/20"
-                                }`}
-                              >
-                                {pieceRefundStatus}
-                              </span>
-                            )}
-                          </div>
+                    {canViewFinancials && (
+                      <div className="mt-2.5 grid grid-cols-3 gap-1 bg-secondary/30 rounded-lg p-1.5 text-center text-xs">
+                        <div>
+                          <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Total</p>
+                          <p className="font-sans font-bold text-xs text-foreground mt-0.5">{formatCurrencyINR(r.total)}</p>
                         </div>
-                      );
-                    })()}
+                        <div>
+                          <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Advance</p>
+                          <p className="font-sans font-bold text-xs text-emerald-600 mt-0.5">{formatCurrencyINR(r.advance || 0)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[9px] uppercase tracking-wider text-muted-foreground font-semibold">Due</p>
+                          <p className={`font-sans font-bold text-xs mt-0.5 ${dueAmount > 0 ? "text-destructive" : "text-emerald-600"}`}>
+                            {formatCurrencyINR(dueAmount)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     <div className="mt-3 flex justify-end items-center gap-2">
                       <ViewInvoiceDialog rental={r} />
                       <EditRentalDialog
@@ -797,13 +744,10 @@ export default function RentalsPage() {
                 {canViewFinancials && (
                   <>
                     <TableHead className="text-[11px] font-bold uppercase tracking-wider text-right">
-                      Total
+                      Total Rent
                     </TableHead>
                     <TableHead className="text-[11px] font-bold uppercase tracking-wider text-right">
                       Due
-                    </TableHead>
-                    <TableHead className="text-[11px] font-bold uppercase tracking-wider text-right">
-                      Refund Security
                     </TableHead>
                   </>
                 )}
@@ -818,7 +762,7 @@ export default function RentalsPage() {
             <TableBody>
               {(viewMode === "orders" ? groupedOrders.length === 0 : filteredRentals.length === 0) && (
                 <TableRow className="border-border hover:bg-transparent">
-                  <TableCell colSpan={canViewFinancials ? 9 : 6} className="py-12 text-center text-muted-foreground">
+                  <TableCell colSpan={canViewFinancials ? 8 : 6} className="py-12 text-center text-muted-foreground">
                     <div className="flex flex-col items-center justify-center gap-1">
                       <p className="font-sans font-semibold text-base text-foreground">No rentals found</p>
                       <p className="text-xs text-muted-foreground">
@@ -1026,29 +970,6 @@ export default function RentalsPage() {
                       </TableCell>
                     )}
 
-                    {/* Refund Security */}
-                    {canViewFinancials && (
-                      <TableCell className="align-top py-3.5 text-right whitespace-nowrap">
-                        <div className="font-sans font-bold text-sm sm:text-base text-amber-700">
-                          {formatCurrencyINR(order.securityAmount)}
-                        </div>
-                        {order.securityAmount > 0 && order.refundStatus && order.refundStatus !== "None" && (
-                          <div className="mt-1">
-                            <span
-                              className={`inline-block text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
-                                order.refundStatus === "Refunded"
-                                  ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
-                                  : order.refundStatus === "Eligible"
-                                  ? "bg-blue-500/10 text-blue-700 border-blue-500/20"
-                                  : "bg-amber-500/10 text-amber-700 border-amber-500/20"
-                              }`}
-                            >
-                              {order.refundStatus}
-                            </span>
-                          </div>
-                        )}
-                      </TableCell>
-                    )}
 
                     {/* Status */}
                     <TableCell className="align-top py-3.5 text-center">
@@ -1149,33 +1070,6 @@ export default function RentalsPage() {
                           {formatCurrencyINR(dueAmount)}
                         </TableCell>
                       )}
-                      {canViewFinancials && (() => {
-                        const refundSec = getItemRefundSecurityDisplay(r, rentals);
-                        const relatedRentals = r.billNo ? rentals.filter((rent) => rent.billNo === r.billNo) : [r];
-                        const pieceRefundStatus = getBillRefundSecurityStatus(relatedRentals);
-                        return (
-                          <TableCell className="text-right whitespace-nowrap align-middle">
-                            <div className="font-sans font-bold text-sm sm:text-base text-amber-700">
-                              {refundSec > 0 ? formatCurrencyINR(refundSec) : <span className="text-muted-foreground font-normal text-xs">-</span>}
-                            </div>
-                            {refundSec > 0 && pieceRefundStatus !== "None" && (
-                              <div className="mt-1">
-                                <span
-                                  className={`inline-block text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
-                                    pieceRefundStatus === "Refunded"
-                                      ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
-                                      : pieceRefundStatus === "Eligible"
-                                      ? "bg-blue-500/10 text-blue-700 border-blue-500/20"
-                                      : "bg-amber-500/10 text-amber-700 border-amber-500/20"
-                                  }`}
-                                >
-                                  {pieceRefundStatus}
-                                </span>
-                              </div>
-                            )}
-                          </TableCell>
-                        );
-                      })()}
                       <TableCell className="text-center">
                         <StatusBadge status={r.status} kind="rental" />
                       </TableCell>

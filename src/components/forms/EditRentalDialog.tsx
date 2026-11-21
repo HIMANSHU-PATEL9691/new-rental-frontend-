@@ -26,7 +26,7 @@ import {
 
 import { Plus, Calendar, Trash2 } from "lucide-react";
 import { useStore } from "@/data/store";
-import { formatCurrencyINR, getBillSecurity } from "@/lib/utils";
+import { formatCurrencyINR, getBillSecurity, calculateBillFinancials, sortBillItemsChronological } from "@/lib/utils";
 
 import type { Rental, RentalStatus } from "@/data/mock";
 import { formatImageUrl } from "@/lib/api";
@@ -205,10 +205,13 @@ export function EditRentalDialog({
   const canSeeFinancials = ["admin", "superadmin", "super_admin", "reception", "employee"].includes(userRole);
 
   const relatedRentals = useMemo(() => {
+    let list = [rental];
     if (rental.billNo) {
-      return rentals.filter((r) => r.billNo === rental.billNo);
+      const cleanBillNo = String(rental.billNo).trim().replace(/^#+/, "").toLowerCase();
+      const matched = rentals.filter((r) => String(r.billNo || "").trim().replace(/^#+/, "").toLowerCase() === cleanBillNo);
+      if (matched.length > 0) list = matched;
     }
-    return [rental];
+    return sortBillItemsChronological(list);
   }, [rentals, rental.billNo, rental.id]);
 
   const [form, setForm] = useState<{
@@ -1032,11 +1035,15 @@ Thank you for choosing SAJAN SAGAR COLLECTION!`;
 
       const piecesTotal = piecesData.reduce((acc, p) => acc + p.lineTotal, 0);
 
+      let allocatedAdvance = 0;
       const updatePromises = piecesData.map(async (p, idx) => {
-        const ratio = piecesTotal > 0 ? p.lineTotal / piecesTotal : 1 / piecesData.length;
-        const pieceAdvance = Math.round(parsed.data.advance * ratio);
-        const totalSec = Number(parsed.data.securityAmount) || 0;
         const isLastPiece = idx === piecesData.length - 1;
+        const ratio = piecesTotal > 0 ? p.lineTotal / piecesTotal : 1 / piecesData.length;
+        const pieceAdvance = isLastPiece
+          ? Math.max(0, parsed.data.advance - allocatedAdvance)
+          : Math.round(parsed.data.advance * ratio);
+        allocatedAdvance += pieceAdvance;
+        const totalSec = Number(parsed.data.securityAmount) || 0;
         const pieceSecReturned = piecesData.length === 1
           ? Boolean(parsed.data.securityReturned)
           : (parsed.data.status === "returned" && Boolean(parsed.data.securityReturned) && isLastPiece);
